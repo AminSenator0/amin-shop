@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none" role="img" aria-label="لوگو فروشگاه">
+  <defs>
+    <linearGradient id="bg" x1="64" y1="48" x2="448" y2="464" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#16827D"/>
+      <stop offset="1" stop-color="#2EC4B6"/>
+    </linearGradient>
+    <linearGradient id="bag" x1="176" y1="168" x2="336" y2="360" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E8FAF8"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect x="24" y="24" width="464" height="464" rx="96" stroke="#FFFFFF" stroke-opacity="0.18" stroke-width="4"/>
+  <path d="M176 224V200a80 80 0 1 1 160 0v24" stroke="url(#bag)" stroke-width="28" stroke-linecap="round"/>
+  <path d="M136 224h240l-18 196.8a24 24 0 0 1-23.8 20.8H177.8a24 24 0 0 1-23.8-20.8L136 224Z" fill="url(#bag)"/>
+  <path d="M208 280h96" stroke="#16827D" stroke-width="16" stroke-linecap="round" stroke-opacity="0.35"/>
+  <circle cx="208" cy="312" r="18" fill="#16827D" fill-opacity="0.45"/>
+  <circle cx="304" cy="312" r="18" fill="#16827D" fill-opacity="0.45"/>
+  <path d="M352 152l28 28" stroke="#FFFFFF" stroke-width="14" stroke-linecap="round" stroke-opacity="0.85"/>
+  <path d="M368 136l12 44-32-12 20-32Z" fill="#FFFFFF" fill-opacity="0.9"/>
+</svg>

@@ -1,0 +1,36 @@
+/* Admin form enhancements loaded separately for the admin layout. */
+
+.admin-input,
+.admin-select,
+.admin-textarea {
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.admin-input:focus-visible,
+.admin-select:focus-visible,
+.admin-textarea:focus-visible {
+    outline: none;
+}
+
+.admin-input::placeholder,
+.admin-textarea::placeholder {
+    color: rgb(161 161 170);
+}
+
+.admin-select[data-auto-submit] {
+    cursor: pointer;
+}
+
+.pdp-default {
+    z-index: 60;
+}
+
+.select2-container--default .select2-selection--single,
+.select2-container--default .select2-selection--multiple {
+    border-radius: 0.75rem;
+}
+
+.select2-container--default.select2-container--focus .select2-selection--multiple,
+.select2-container--default.select2-container--open .select2-selection--single {
+    border-color: rgb(99 102 241);
+}
