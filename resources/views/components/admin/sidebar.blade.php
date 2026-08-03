@@ -28,6 +28,26 @@
         <input type="search" id="admin-nav-search" class="admin-sidebar-search-input" placeholder="جستجو در منو..." autocomplete="off" aria-label="جستجو در منو">
     </div>
 
+<!-- Audit Logs Section -->
+<div class="mt-6">
+    <p class="px-3 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">لاگینگ</p>
+    <a href="{{ route('admin.audit-logs.dashboard') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {{ request()->routeIs('admin.audit-logs.dashboard') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50' }}">
+        📊 داشبورد لاگ
+    </a>
+    <a href="{{ route('admin.audit-logs.index') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {{ request()->routeIs('admin.audit-logs.index') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50' }}">
+        📋 لاگ‌ها
+    </a>
+    <a href="{{ route('admin.audit-logs.alerts') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {{ request()->routeIs('admin.audit-logs.alerts') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50' }}">
+        🔔 هشدارها
+        @if($unresolvedAlertsCount = \App\Services\SecurityAlertService::getUnresolvedCount())
+            <span class="mr-auto bg-rose-500 text-white text-[10px] rounded-full w-5 h-5 flex items-center justify-center">{{ $unresolvedAlertsCount }}</span>
+        @endif
+    </a>
+    <a href="{{ route('admin.audit-logs.blocked-ips') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {{ request()->routeIs('admin.audit-logs.blocked-ips') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50' }}">
+        🚫 IPهای مسدود
+    </a>
+</div>
+
     <nav class="admin-nav-scroll" id="admin-nav" aria-label="منوی مدیریت">
         <p class="admin-nav-group-label">اصلی</p>
         <x-admin.nav-item href="{{ route('admin.dashboard') }}" :active="request()->routeIs('admin.dashboard')"

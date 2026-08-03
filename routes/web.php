@@ -23,6 +23,9 @@ use App\Http\Controllers\Shop\CheckoutController;
 use App\Http\Controllers\Shop\ContactController;
 use App\Http\Controllers\Shop\CouponController;
 use App\Http\Controllers\Shop\ReviewController;
+use App\Http\Controllers\Admin\AuditLogController;
+use App\Http\Controllers\Admin\BlockedIpController;
+use App\Http\Controllers\Admin\SecurityAlertController;
 use App\Http\Controllers\Admin\BlogPostController as AdminBlogPostController;
 use App\Http\Controllers\Admin\FaqController as AdminFaqController;
 use App\Http\Controllers\Admin\HomepageController as AdminHomepageController;
@@ -140,6 +143,8 @@ Route::prefix('admin')->name('admin.')->middleware('guest')->group(function () {
     Route::post('login', [AdminLoginController::class, 'store']);
 });
 
+   
+
 // پنل مدیریت
 Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(function () {
     Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
@@ -196,6 +201,20 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::delete('newsletter/{newsletterSubscriber}', [NewsletterSubscriberController::class, 'destroy'])->name('newsletter.destroy');
     Route::get('settings', [StoreSettingsController::class, 'edit'])->name('settings.edit');
     Route::put('settings', [StoreSettingsController::class, 'update'])->name('settings.update');
+    Route::prefix('audit-logs')->name('audit-logs.')->group(function () {
+        Route::get('/', [AuditLogController::class, 'dashboard'])->name('dashboard');
+        Route::get('/logs', [AuditLogController::class, 'index'])->name('index');
+        Route::get('/export', [AuditLogController::class, 'export'])->name('export');
+        Route::get('/ip/{ip}', [AuditLogController::class, 'ipDetail'])->name('ip-detail');
+        Route::get('/user/{user}/activity', [AuditLogController::class, 'userActivity'])->name('user-activity');
+        Route::get('/admin/{admin}/activity', [AuditLogController::class, 'adminActivity'])->name('admin-activity');
+        
+        Route::get('/alerts', [SecurityAlertController::class, 'index'])->name('alerts');
+        Route::patch('/alerts/{alert}/resolve', [SecurityAlertController::class, 'resolve'])->name('alerts.resolve');
+        
+        Route::get('/blocked-ips', [BlockedIpController::class, 'index'])->name('blocked-ips');
+        Route::post('/blocked-ips', [BlockedIpController::class, 'store'])->name('blocked-ips.store');
+        Route::delete('/blocked-ips/{blockedIp}', [BlockedIpController::class, 'destroy'])->name('blocked-ips.destroy');
+    });
 });
-
 require __DIR__.'/auth.php';
