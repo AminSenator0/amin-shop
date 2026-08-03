@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Product extends Model
@@ -55,6 +56,117 @@ class Product extends Model
     {
         return $this->hasMany(ProductImage::class)->orderBy('sort_order');
     }
+
+    // ─── متدهای واریانت ────────────────────────────────────
+    public function variants(): HasMany
+    {
+        return $this->hasMany(ProductVariant::class);
+    }
+
+    public function hasVariants(): bool
+    {
+        try {
+            return $this->variants()->exists();
+        } catch (\Illuminate\Database\QueryException $e) {
+            return false;
+        }
+    }
+
+    public function variantStock(?string $size, ?string $color): int
+    {
+        if (! $this->hasSizes() && ! $this->hasColors()) {
+            return $this->stock;
+        }
+
+        $variant = $this->variants()
+            ->where('size', $size)
+            ->where('color', $color)
+            ->first();
+
+        return $variant?->stock ?? 0;
+    }
+
+    public function variantIsInStock(?string $size, ?string $color): bool
+    {
+        return $this->variantStock($size, $color) > 0;
+    }
+
+    public function hasEnoughStock(int $quantity, ?string $size = null, ?string $color = null): bool
+    {
+        return $this->variantStock($size, $color) >= $quantity;
+    }
+
+    public function decrementVariantStock(?string $size, ?string $color, int $quantity): void
+    {
+        if ($this->hasVariants()) {
+            $variant = $this->variants()
+                ->where('size', $size)
+                ->where('color', $color)
+                ->first();
+
+            if ($variant) {
+                $variant->decrement('stock', $quantity);
+                $this->update(['stock' => $this->variants()->sum('stock')]);
+                return;
+            }
+        }
+
+        $this->decrement('stock', $quantity);
+    }
+
+    public function incrementVariantStock(?string $size, ?string $color, int $quantity): void
+    {
+        if ($this->hasVariants()) {
+            $variant = $this->variants()
+                ->where('size', $size)
+                ->where('color', $color)
+                ->first();
+
+            if ($variant) {
+                $variant->increment('stock', $quantity);
+                $this->update(['stock' => $this->variants()->sum('stock')]);
+                return;
+            }
+        }
+
+        $this->increment('stock', $quantity);
+    }
+    // ─── پایان متدهای واریانت ──────────────────────────────
+
+    // ─── متدهای Attribute ──────────────────────────────────
+    public function attributeValues(): HasMany
+    {
+        return $this->hasMany(ProductAttributeValue::class);
+    }
+
+    public function attributes(): BelongsToMany
+    {
+        return $this->belongsToMany(ProductAttribute::class, 'product_attribute_values')
+            ->withPivot('value')
+            ->withTimestamps();
+    }
+
+    public function hasAttributes(): bool
+    {
+        return $this->attributeValues()->exists();
+    }
+    // ─── پایان متدهای Attribute ────────────────────────────
+
+    // ─── متدهای جدید Custom Fields ──────────────────────────
+    public function customFields(): HasMany
+    {
+        return $this->hasMany(ProductCustomField::class)->orderBy('sort_order');
+    }
+
+    public function hasCustomFields(): bool
+    {
+        try {
+            return $this->customFields()->exists();
+        } catch (\Illuminate\Database\QueryException $e) {
+            return false;
+        }
+    }
+    // ─── پایان متدهای جدید Custom Fields ───────────────────
 
     public function thumbnail(): ?string
     {
@@ -108,6 +220,9 @@ class Product extends Model
 
     public function isInStock(): bool
     {
+        if ($this->hasVariants()) {
+            return $this->variants()->sum('stock') > 0;
+        }
         return $this->stock > 0;
     }
 
@@ -136,6 +251,10 @@ class Product extends Model
 
     public function isLowStock(int $threshold = 5): bool
     {
+        if ($this->hasVariants()) {
+            $total = $this->variants()->sum('stock');
+            return $total > 0 && $total <= $threshold;
+        }
         return $this->stock > 0 && $this->stock <= $threshold;
     }
 

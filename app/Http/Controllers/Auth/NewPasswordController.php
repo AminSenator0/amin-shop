@@ -34,9 +34,15 @@ class NewPasswordController extends Controller
         $request->validate([
             'token' => ['required'],
             'email' => ['required', 'email'],
-            'password' => ['required', 'confirmed', Rules\Password::defaults()],
+            'password' => [
+                'required',
+                'confirmed',
+                'regex:/^[\x20-\x7E]+$/',
+                \Illuminate\Validation\Rules\Password::defaults(),
+            ],
+        ], [
+            'password.regex' => 'رمز عبور فقط باید شامل حروف انگلیسی، اعداد و نمادها باشد. استفاده از حروف فارسی مجاز نیست.',
         ]);
-
         // Here we will attempt to reset the user's password. If it is successful we
         // will update the password on an actual user model and persist it to the
         // database. Otherwise we will parse the error and return the response.

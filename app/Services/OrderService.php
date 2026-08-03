@@ -280,7 +280,14 @@ class OrderService
 
                 foreach ($order->items as $item) {
                     if ($item->product_id) {
-                        Product::where('id', $item->product_id)->increment('stock', $item->quantity);
+                        $product = Product::find($item->product_id);
+                        if ($product) {
+                            $product->incrementVariantStock(
+                                $item->options['size'] ?? null,
+                                $item->options['color'] ?? null,
+                                $item->quantity
+                            );
+                        }
                     }
                 }
             }
@@ -288,7 +295,6 @@ class OrderService
             $order->update(['status' => OrderStatus::Cancelled]);
         };
 
-        // اگر از داخل transaction بیرونی صدا زده شود، تو در تو امن است
         if (DB::transactionLevel() > 0) {
             $callback();
 
@@ -317,9 +323,6 @@ class OrderService
         }
     }
 
-    /**
-     * علامت‌گذاری پرداخت ناموفق/لغو‌شده و آزادسازی موجودی رزرو‌شده.
-     */
     public function markPaymentFailed(Order $order, string $reason = 'پرداخت ناموفق یا لغو شد.'): bool
     {
         $changed = false;
@@ -352,7 +355,14 @@ class OrderService
 
                 foreach ($locked->items as $item) {
                     if ($item->product_id) {
-                        Product::where('id', $item->product_id)->increment('stock', $item->quantity);
+                        $product = Product::find($item->product_id);
+                        if ($product) {
+                            $product->incrementVariantStock(
+                                $item->options['size'] ?? null,
+                                $item->options['color'] ?? null,
+                                $item->quantity
+                            );
+                        }
                     }
                 }
 
@@ -383,9 +393,6 @@ class OrderService
         return $changed;
     }
 
-    /**
-     * رزرو مجدد موجودی برای تلاش دوباره پرداخت سفارش ناموفق.
-     */
     public function reserveStockForPaymentRetry(Order $order): void
     {
         DB::transaction(function () use ($order) {
@@ -404,11 +411,18 @@ class OrderService
 
                 $product = Product::query()->whereKey($item->product_id)->lockForUpdate()->first();
 
-                if (! $product || ! $product->is_active || $product->stock < $item->quantity) {
+                if (! $product || ! $product->is_active) {
+                    throw new \RuntimeException("محصول {$item->product_name} غیرفعال است.");
+                }
+
+                $size = $item->options['size'] ?? null;
+                $color = $item->options['color'] ?? null;
+
+                if (! $product->hasEnoughStock($item->quantity, $size, $color)) {
                     throw new \RuntimeException("موجودی {$item->product_name} برای پرداخت مجدد کافی نیست.");
                 }
 
-                $product->decrement('stock', $item->quantity);
+                $product->decrementVariantStock($size, $color, $item->quantity);
             }
 
             if ($locked->coupon_id) {
@@ -434,7 +448,7 @@ class OrderService
         foreach ($order->items as $item) {
             $product = $item->product;
 
-            if (! $product || ! $product->is_active || $product->stock < 1) {
+            if (! $product || ! $product->is_active || ! $product->isInStock()) {
                 $skipped[] = $item->product_name;
 
                 continue;
@@ -443,7 +457,8 @@ class OrderService
             try {
                 $size = $item->options['size'] ?? null;
                 $color = $item->options['color'] ?? null;
-                $qty = min($item->quantity, $product->stock);
+                $availableStock = $product->variantStock($size, $color);
+                $qty = min($item->quantity, max(1, $availableStock));
                 $cart->add($product->id, $qty, $size, $color);
                 $added += $qty;
             } catch (\RuntimeException) {
@@ -472,7 +487,7 @@ class OrderService
                 $color = $row['color'] ?? null;
                 $qty = (int) $row['quantity'];
 
-                if ($product->stock < $qty) {
+                if (! $product->hasEnoughStock($qty, $size, $color)) {
                     throw new \RuntimeException("موجودی {$product->name} کافی نیست.");
                 }
 
@@ -518,7 +533,7 @@ class OrderService
             ]);
 
             foreach ($lineItems as $line) {
-                $line['product']->decrement('stock', $line['qty']);
+                $line['product']->decrementVariantStock($line['size'] ?? null, $line['color'] ?? null, $line['qty']);
 
                 $options = array_filter([
                     'size' => $line['size'] ?? null,
@@ -555,7 +570,7 @@ class OrderService
         Order::query()
             ->where('payment_status', PaymentStatus::Pending)
             ->where('status', OrderStatus::Pending)
-            ->where('created_at', '<', now()->subHours($hours))
+            ->where('created_at', '<', now()->subMinutes(20))
             ->with('items')
             ->chunkById(50, function ($orders) use (&$count) {
                 foreach ($orders as $order) {

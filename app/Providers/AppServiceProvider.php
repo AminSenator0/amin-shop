@@ -14,31 +14,31 @@ use App\Services\FileUploadService;
 use App\Services\OrderService;
 use App\Services\WishlistService;
 use App\Support\StoreSettings;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
     public function register(): void
     {
         $this->app->singleton(FileUploadService::class);
     }
 
-    /**
-     * Bootstrap any application services.
-     */
     public function boot(): void
     {
         Gate::policy(Order::class, OrderPolicy::class);
 
         Paginator::defaultView('pagination.tailwind');
         Paginator::defaultSimpleView('pagination.simple-tailwind');
+
+        // ═══ Rate Limiting (محدودیت تلاش) ═══
+        $this->configureRateLimiting();
 
         View::composer(['layouts.admin', 'components.admin.sidebar'], function ($view) {
             $view->with([
@@ -72,6 +72,44 @@ class AppServiceProvider extends ServiceProvider
         });
 
         $this->applyStoreMailConfig();
+    }
+
+    private function configureRateLimiting(): void
+    {
+        // لاگین: ۵ تلاش در دقیقه
+        RateLimiter::for('login', function (Request $request) {
+            return Limit::perMinute(5)->by($request->ip())->response(function () {
+                return back()->with('error', 'تعداد تلاش‌های ناموفق زیاد بود. لطفاً ۱ دقیقه دیگر تلاش کنید.');
+            });
+        });
+
+        // ثبت‌نام: ۳ تلاش در دقیقه
+        RateLimiter::for('register', function (Request $request) {
+            return Limit::perMinute(3)->by($request->ip())->response(function () {
+                return back()->with('error', 'تعداد ثبت‌نام بیش از حد مجاز. لطفاً ۱ دقیقه صبر کنید.');
+            });
+        });
+
+        // کد تخفیف: ۱۰ تلاش در دقیقه
+        RateLimiter::for('coupon', function (Request $request) {
+            return Limit::perMinute(10)->by($request->ip())->response(function () {
+                return back()->with('error', 'تعداد تلاش برای کد تخفیف زیاد بود. لطفاً ۱ دقیقه صبر کنید.');
+            });
+        });
+
+        // فرم تماس/پیام: ۳ پیام در ساعت
+        RateLimiter::for('contact', function (Request $request) {
+            return Limit::perHour(5)->by($request->ip())->response(function () {
+                return back()->with('error', 'شما در یک ساعت فقط ۳ پیام می‌توانید ارسال کنید.');
+            });
+        });
+
+        // پرداخت/درگاه: ۵ تلاش در دقیقه
+        RateLimiter::for('payment', function (Request $request) {
+            return Limit::perMinute(5)->by($request->ip())->response(function () {
+                return back()->with('error', 'تعداد تلاش برای پرداخت زیاد بود. لطفاً ۱ دقیقه صبر کنید.');
+            });
+        });
     }
 
     private function applyStoreMailConfig(): void

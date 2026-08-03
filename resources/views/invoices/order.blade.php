@@ -126,6 +126,15 @@
             font-size: 12px;
             color: {{ $theme['muted'] }};
         }
+        .custom-fields {
+            margin-top: 4px;
+            font-size: 11px;
+            color: {{ $theme['muted'] }};
+        }
+        .custom-fields span {
+            display: inline-block;
+            margin-left: 8px;
+        }
         @media print {
             body { background: #fff; padding: 0; }
             .no-print { display: none !important; }
@@ -207,6 +216,15 @@
                             @if($item->optionsLabel())
                                 <br><small style="color: {{ $theme['muted'] }}">{{ $item->optionsLabel() }}</small>
                             @endif
+                            {{-- ═══ فیلدهای سفارشی ═══ --}}
+                            @if(!empty($item->custom_fields))
+                                <div class="custom-fields">
+                                    @foreach($item->custom_fields as $cf)
+                                        <span>{{ $cf['label'] ?? 'فیلد' }}: {{ $cf['value'] }}</span>
+                                    @endforeach
+                                </div>
+                            @endif
+                            {{-- ═══ پایان فیلدهای سفارشی ═══ --}}
                         </td>
                         <td dir="ltr">{{ $item->product_sku }}</td>
                         <td>{{ format_price($item->price) }}</td>

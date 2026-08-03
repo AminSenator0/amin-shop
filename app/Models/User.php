@@ -122,6 +122,11 @@ class User extends Authenticatable
         return $this->reviews()->where('product_id', $productId)->exists();
     }
 
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->notify(new \App\Notifications\ResetPasswordNotification($token));
+    }
+
     public function canReviewProduct(int $productId): bool
     {
         return $this->hasPurchasedProduct($productId) && ! $this->hasReviewedProduct($productId);

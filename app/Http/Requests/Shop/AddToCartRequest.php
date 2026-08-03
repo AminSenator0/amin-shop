@@ -19,6 +19,8 @@ class AddToCartRequest extends FormRequest
             'quantity' => ['nullable', 'integer', 'min:1'],
             'size' => ['nullable', 'string', 'max:50'],
             'color' => ['nullable', 'string', 'max:50'],
+            'custom_fields' => ['nullable', 'array'], // ← اضافه شده
+
         ];
     }
 

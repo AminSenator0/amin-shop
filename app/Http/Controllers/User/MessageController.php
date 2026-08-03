@@ -29,19 +29,25 @@ class MessageController extends Controller
         return view('user.messages.create');
     }
 
-    public function store(StoreContactMessageRequest $request): RedirectResponse
+    public function store(StoreContactMessageRequest $request)
     {
         $user = auth()->user();
-
-        $message = ContactMessage::create([
+    
+        $data = [
             'user_id' => $user->id,
             'name' => $user->name,
             'email' => $user->email,
             'phone' => $user->phone,
             'subject' => $request->validated('subject'),
             'message' => $request->validated('message'),
-        ]);
-
+        ];
+    
+        if ($request->hasFile('attachment')) {
+            $data['attachment'] = upload_message_attachment($request->file('attachment'));
+        }
+    
+        $message = ContactMessage::create($data);
+    
         return redirect()
             ->route('user.messages.show', $message)
             ->with('success', 'پیام شما ثبت شد. به زودی پاسخ می‌دهیم.');
@@ -62,14 +68,27 @@ class MessageController extends Controller
     public function reply(ContactMessageReplyRequest $request, ContactMessage $message): RedirectResponse
     {
         $this->authorizeMessage($message);
-
-        $this->messages->userReply($message, auth()->user(), $request->validated('body'));
-
+    
+        $data = [
+            'contact_message_id' => $message->id,
+            'user_id' => auth()->id(),
+            'body' => $request->validated('body'),
+            'is_from_admin' => false,
+        ];
+    
+        if ($request->hasFile('attachment')) {
+            $data['attachment'] = upload_message_attachment($request->file('attachment'));
+        }
+    
+        \App\Models\ContactMessageReply::create($data);
+    
+        // به ادمین نشون بده که پاسخ جدید داره
+        $message->update(['has_unread_reply_for_user' => false]);
+    
         return redirect()
             ->route('user.messages.show', $message)
             ->with('success', 'پیام شما ارسال شد. به زودی پاسخ می‌دهیم.');
     }
-
     private function authorizeMessage(ContactMessage $message): void
     {
         if (! $this->messages->userCanAccess($message, auth()->user())) {

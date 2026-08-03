@@ -63,14 +63,21 @@ class ContactMessageController extends Controller
     public function reply(ContactMessageReplyRequest $request, ContactMessage $message): RedirectResponse
     {
         $channel = ReplyChannel::from($request->validated('channel'));
-
+    
         $reply = $this->messages->adminReply(
             $message,
             auth()->user(),
             $request->validated('body'),
             $channel,
         );
-
+    
+        // اگه فایل پیوست آپلود شده، به reply اضافه کن
+        if ($request->hasFile('attachment')) {
+            $reply->update([
+                'attachment' => upload_message_attachment($request->file('attachment')),
+            ]);
+        }
+    
         $flash = match ($channel) {
             ReplyChannel::Panel => 'پاسخ در پنل کاربری مشتری ثبت شد.',
             ReplyChannel::PanelSms => $reply->sms_sent
@@ -83,7 +90,7 @@ class ContactMessageController extends Controller
                 ? 'پاسخ با ایمیل ارسال شد و در پنل نیز ثبت گردید.'
                 : 'پاسخ در پنل ثبت شد. (ارسال ایمیل ناموفق بود)',
         };
-
+    
         return redirect()
             ->route('admin.messages.show', $message)
             ->with('success', $flash);

@@ -206,6 +206,18 @@
                                     :link="$item->product ? route('admin.products.edit', $item->product) : null"
                                     link-class="admin-link font-bold text-zinc-900"
                                 />
+                                {{-- ═══ فیلدهای سفارشی ═══ --}}
+                                @if(!empty($item->custom_fields))
+                                    <div class="mt-1.5 space-y-0.5 text-xs text-zinc-500">
+                                        @foreach($item->custom_fields as $cf)
+                                            <div>
+                                                <span class="font-medium text-zinc-600">{{ $cf['label'] ?? 'فیلد سفارشی' }}:</span>
+                                                <span>{{ $cf['value'] }}</span>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @endif
+                                {{-- ═══ پایان فیلدهای سفارشی ═══ --}}
                             </td>
                             <td class="text-zinc-500 text-xs" dir="ltr">{{ $item->product_sku ?: '—' }}</td>
                             <td>{{ format_price($item->price) }}</td>

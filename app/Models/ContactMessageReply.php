@@ -12,6 +12,7 @@ class ContactMessageReply extends Model
         'contact_message_id',
         'user_id',
         'body',
+        'attachment',  // ← این خط جدید
         'is_from_admin',
         'channel',
         'sms_sent',

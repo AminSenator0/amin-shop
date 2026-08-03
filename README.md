@@ -29,6 +29,8 @@ npm run build
 
 # ۵. اجرا
 php artisan serve
+php artisan schedule:work
+php artisan queue:work
 ```
 
 سایت: [http://127.0.0.1:8000](http://127.0.0.1:8000)

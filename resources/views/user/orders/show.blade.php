@@ -16,10 +16,18 @@
         :subtitle="'ثبت‌شده در '.format_jalali($order->created_at, 'Y/m/d — H:i')"
     />
     <div class="flex flex-wrap items-center gap-2">
-        <x-user.status-badge :status="$order->status" />
-        <x-user.status-badge :status="$order->payment_status" />
+        @if($order->status->value === 'cancelled')
+            <span class="inline-flex items-center gap-1.5 rounded-full bg-rose-100 px-3 py-1 text-sm font-medium text-rose-700">
+                <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+                لغو شده
+            </span>
+        @else
+            <x-user.status-badge :status="$order->status" />
+            <x-user.status-badge :status="$order->payment_status" />
+        @endif
     </div>
-</div>
 
 <div class="user-quick-actions">
     @if(in_array($order->payment_status->value, ['pending', 'failed'], true) && ! in_array($order->status->value, ['cancelled', 'shipped', 'delivered'], true))
@@ -164,6 +172,18 @@
                             :item="$item"
                             :link="$item->product ? route('products.show', $item->product->slug) : null"
                         />
+                        {{-- ═══ فیلدهای سفارشی ═══ --}}
+                        @if(!empty($item->custom_fields))
+                            <div class="mt-1.5 space-y-0.5 text-xs text-zinc-500">
+                                @foreach($item->custom_fields as $cf)
+                                    <div>
+                                        <span class="font-medium text-zinc-600">{{ $cf['label'] ?? 'فیلد سفارشی' }}:</span>
+                                        <span>{{ $cf['value'] }}</span>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @endif
+                        {{-- ═══ پایان فیلدهای سفارشی ═══ --}}
                     </td>
                     <td>{{ format_price($item->price) }}</td>
                     <td>{{ $item->quantity }}</td>

@@ -13,6 +13,7 @@ class OrderItem extends Model
         'product_name',
         'product_sku',
         'options',
+        'custom_fields', // ← اینو اضافه کن
         'price',
         'quantity',
         'total',
@@ -32,6 +33,8 @@ class OrderItem extends Model
     {
         return [
             'options' => 'array',
+            'custom_fields' => 'array', // ← اضافه شده
+
         ];
     }
 

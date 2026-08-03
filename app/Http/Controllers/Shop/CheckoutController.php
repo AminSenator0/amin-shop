@@ -81,7 +81,7 @@ class CheckoutController extends Controller
                         ->lockForUpdate()
                         ->first();
 
-                    if (! $product || $product->stock < $item['quantity']) {
+                    if (! $product || ! $product->hasEnoughStock($item['quantity'], $item['size'] ?? null, $item['color'] ?? null)) {
                         throw new \RuntimeException("موجودی {$item['product']->name} کافی نیست.");
                     }
 
@@ -93,6 +93,7 @@ class CheckoutController extends Controller
                         'quantity' => $item['quantity'],
                         'size' => $item['size'] ?? null,
                         'color' => $item['color'] ?? null,
+                        'custom_fields' => $item['custom_fields'] ?? [], // ← اضافه شده
                         'line_total' => $lineTotal,
                     ];
                 }
@@ -148,7 +149,7 @@ class CheckoutController extends Controller
 
                 foreach ($resolvedLines as $line) {
                     $product = $line['product'];
-                    $product->decrement('stock', $line['quantity']);
+                    $product->decrementVariantStock($line['size'] ?? null, $line['color'] ?? null, $line['quantity']);
 
                     $options = array_filter([
                         'size' => $line['size'],
@@ -161,6 +162,7 @@ class CheckoutController extends Controller
                         'product_name' => $product->name,
                         'product_sku' => $product->sku,
                         'options' => $options !== [] ? $options : null,
+                        'custom_fields' => $line['custom_fields'] !== [] ? $line['custom_fields'] : null, // ← اضافه شده
                         'price' => $product->price,
                         'quantity' => $line['quantity'],
                         'total' => $line['line_total'],
@@ -180,7 +182,6 @@ class CheckoutController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        // سبد موقتاً خالی می‌شود؛ اگر پرداخت ناموفق/لغو شود دوباره از روی سفارش برمی‌گردد
         $this->cart->clear();
         $this->coupons->remove();
 
@@ -245,7 +246,6 @@ class CheckoutController extends Controller
             abort(403);
         }
 
-        // پرداخت آزمایشی داخلی حذف شده — همیشه به درگاه زرین‌پال (سندباکس/واقعی) هدایت می‌شود
         return redirect()->route('checkout.payment', $order);
     }
 }

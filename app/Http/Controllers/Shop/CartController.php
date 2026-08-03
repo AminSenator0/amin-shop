@@ -25,6 +25,7 @@ class CartController extends Controller
                 $request->integer('quantity', 1),
                 $request->input('size'),
                 $request->input('color'),
+                $request->input('custom_fields', []), // ← اضافه شده
             );
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());

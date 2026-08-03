@@ -83,6 +83,19 @@
                                 </form>
                             </div>
 
+                            {{-- ═══ فیلدهای سفارشی ═══ --}}
+                            @if(!empty($item['custom_fields_display']))
+                                <div class="mt-1.5 space-y-0.5 text-xs text-zinc-500">
+                                    @foreach($item['custom_fields_display'] as $cf)
+                                        <div>
+                                            <span class="font-medium text-zinc-600">{{ $cf['label'] }}:</span>
+                                            <span>{{ $cf['value'] }}</span>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @endif
+                            {{-- ═══ پایان فیلدهای سفارشی ═══ --}}
+
                             <div class="shop-cart-item-meta">
                                 <span class="shop-cart-item-unit-label">قیمت واحد:</span>
                                 <span class="shop-cart-item-price">{{ format_price($item['product']->price) }}</span>

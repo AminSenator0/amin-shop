@@ -19,19 +19,28 @@ class ProductController extends Controller
             ShoppingFlow::activate();
         }
 
-        $query = Product::with(['category', 'brand'])
+        // ✅ images هم eager load شد (برای کارت محصول)
+        $query = Product::with(['category', 'brand', 'images'])
             ->withCount('approvedReviews')
             ->withAvg('approvedReviews', 'rating')
             ->where('is_active', true);
 
+        // ─── دسته‌بندی ─────────────────────────────
         if ($request->filled('category')) {
             $query->whereHas('category', fn ($q) => $q->where('slug', $request->category));
         }
 
-        if ($request->filled('brand')) {
+        // ─── برند (چندتایی) ───────────────────────
+        if ($request->has('brands')) {
+            $brandSlugs = array_filter((array) $request->brands);
+            if (! empty($brandSlugs)) {
+                $query->whereHas('brand', fn ($q) => $q->whereIn('slug', $brandSlugs));
+            }
+        } elseif ($request->filled('brand')) {
             $query->whereHas('brand', fn ($q) => $q->where('slug', $request->brand));
         }
 
+        // ─── جستجو ────────────────────────────────
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
@@ -40,39 +49,80 @@ class ProductController extends Controller
             });
         }
 
-        if ($request->filled('sort')) {
-            match ($request->sort) {
-                'price_asc' => $query->orderBy('price'),
-                'price_desc' => $query->orderByDesc('price'),
-                'newest' => $query->latest(),
-                'discount' => $query
-                    ->whereNotNull('compare_price')
-                    ->whereColumn('compare_price', '>', 'price')
-                    ->orderByRaw('(compare_price - price) / compare_price DESC'),
-                'bestseller' => $query->orderByDesc(
-                    \App\Models\OrderItem::selectRaw('COALESCE(SUM(quantity), 0)')
-                        ->join('orders', 'orders.id', '=', 'order_items.order_id')
-                        ->whereColumn('order_items.product_id', 'products.id')
-                        ->where('orders.status', '!=', \App\Enums\OrderStatus::Cancelled)
-                ),
-                default => $query->latest(),
-            };
-        } else {
-            $query->latest();
+        // ─── رنج قیمت ─────────────────────────────
+        if ($request->filled('min_price')) {
+            $query->where('price', '>=', (int) $request->min_price);
         }
+        if ($request->filled('max_price')) {
+            $query->where('price', '<=', (int) $request->max_price);
+        }
+
+        // ─── فقط موجود ────────────────────────────
+        if ($request->boolean('in_stock')) {
+            $query->where(function ($q) {
+                $q->whereHas('variants', fn ($vq) => $vq->where('stock', '>', 0))
+                  ->orWhere(function ($q2) {
+                      $q2->doesntHave('variants')->where('stock', '>', 0);
+                  });
+            });
+        }
+
+        // ─── فقط تخفیف‌دار ────────────────────────
+        if ($request->boolean('discount')) {
+            $query->whereNotNull('compare_price')
+                  ->whereColumn('compare_price', '>', 'price');
+        }
+
+        // ─── حداقل امتیاز ─────────────────────────
+        if ($request->filled('min_rating')) {
+            $minRating = (float) $request->min_rating;
+            $query->whereRaw('(
+                SELECT AVG(rating) 
+                FROM reviews 
+                WHERE reviews.product_id = products.id 
+                AND reviews.is_approved = 1
+            ) >= ?', [$minRating]);
+        }
+
+        // ─── مرتب‌سازی ─────────────────────────────
+        $sort = $request->input('sort', 'newest');
+        match ($sort) {
+            'price_asc' => $query->orderBy('price'),
+            'price_desc' => $query->orderByDesc('price'),
+            'newest' => $query->latest(),
+            'discount' => $query
+                ->whereNotNull('compare_price')
+                ->whereColumn('compare_price', '>', 'price')
+                ->orderByRaw('(compare_price - price) / compare_price DESC'),
+            'bestseller' => $query->orderByDesc(
+                \App\Models\OrderItem::selectRaw('COALESCE(SUM(quantity), 0)')
+                    ->join('orders', 'orders.id', '=', 'order_items.order_id')
+                    ->whereColumn('order_items.product_id', 'products.id')
+                    ->where('orders.status', '!=', \App\Enums\OrderStatus::Cancelled)
+            ),
+            default => $query->latest(),
+        };
 
         $products = $query->paginate(12)->withQueryString();
         $categories = Category::where('is_active', true)->orderBy('sort_order')->get();
         $brands = Brand::where('is_active', true)->orderBy('name')->get();
 
+        $activeBrands = array_filter((array) $request->brands);
+        $maxProductPrice = Product::where('is_active', true)->max('price') ?? 0;
+
         ProductListReturn::remember($request);
 
-        return view('shop.products.index', compact('products', 'categories', 'brands'));
+        return view('shop.products.index', compact(
+            'products', 'categories', 'brands', 'sort', 'activeBrands', 'maxProductPrice'
+        ));
     }
 
     public function show(Request $request, string $slug, RecentlyViewedService $recentlyViewed)
     {
-        $product = Product::with(['category', 'brand', 'images'])
+        // ✅ withCount('approvedReviews') اضافه شد
+        $product = Product::with(['category', 'brand', 'images', 'variants', 'attributeValues.attribute'])
+            ->withCount('approvedReviews')
+            ->withAvg('approvedReviews', 'rating')
             ->where('slug', $slug)
             ->where('is_active', true)
             ->firstOrFail();
@@ -106,9 +156,17 @@ class ProductController extends Controller
             $reviews = $product->approvedReviews()->with('user')->latest()->get();
         }
 
-        $approvedCount = $product->approvedReviews()->count();
-        $ratingDistribution = collect(range(5, 1))->mapWithKeys(function ($star) use ($product) {
-            return [$star => $product->approvedReviews()->where('rating', $star)->count()];
+        // ✅ از withCount استفاده شد → دیگه کوئری اضافی نمی‌زنه
+        $approvedCount = $product->approved_reviews_count;
+
+        // ✅ فقط ۱ کوئری با groupBy به جای ۵ کوئری جدا
+        $rawDistribution = $product->approvedReviews()
+            ->selectRaw('rating, COUNT(*) as count')
+            ->groupBy('rating')
+            ->pluck('count', 'rating');
+
+        $ratingDistribution = collect(range(5, 1))->mapWithKeys(function ($star) use ($rawDistribution) {
+            return [$star => $rawDistribution[$star] ?? 0];
         });
 
         $canReview = auth()->check()

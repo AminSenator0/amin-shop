@@ -36,6 +36,15 @@ if (! function_exists('to_persian_digits')) {
     }
 }
 
+if (!function_exists('upload_message_attachment')) {
+    function upload_message_attachment($file): string
+    {
+        $filename = uniqid('msg_') . '_' . time() . '.' . $file->getClientOriginalExtension();
+        $file->storeAs('message-attachments', $filename, 'public');
+        return 'message-attachments/' . $filename;
+    }
+}
+
 if (! function_exists('normalize_mobile')) {
     function normalize_mobile(?string $phone): ?string
     {
@@ -117,20 +126,26 @@ if (! function_exists('format_jalali')) {
     }
 }
 
-if (! function_exists('parse_jalali')) {
-    function parse_jalali(?string $input): ?Carbon
-    {
-        if ($input === null || trim($input) === '') {
-            return null;
-        }
+function parse_jalali(?string $input): ?Carbon
+{
+    if ($input === null || trim($input) === '') {
+        return null;
+    }
 
-        $input = to_english_digits(trim($input));
+    $input = to_english_digits(trim($input));
 
-        try {
-            return Carbon::instance(Verta::parse($input)->datetime());
-        } catch (\Throwable) {
-            return null;
+    // اگه فرمت YYYY-MM-DD باشه و سال > 2000، میلادیه
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $input)) {
+        $year = (int) substr($input, 0, 4);
+        if ($year > 2000) {
+            return Carbon::parse($input);
         }
+    }
+
+    try {
+        return Carbon::instance(Verta::parse($input)->datetime());
+    } catch (\Throwable) {
+        return null;
     }
 }
 

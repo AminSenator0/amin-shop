@@ -13,15 +13,18 @@ use Illuminate\Support\Carbon;
 
 class FinancialReportService
 {
-    public function resolveDateRange(?string $dateFrom, ?string $dateTo): array
+    private function resolveDateRange(?string $dateFrom, ?string $dateTo): array
     {
-        $from = $dateFrom ? Carbon::parse($dateFrom)->startOfDay() : today()->subDays(29)->startOfDay();
-        $to = $dateTo ? Carbon::parse($dateTo)->endOfDay() : today()->endOfDay();
-
+        $from = parse_jalali($dateFrom);
+        $from = $from ? $from->startOfDay() : today()->subDays(29)->startOfDay();
+    
+        $to = parse_jalali($dateTo);
+        $to = $to ? $to->endOfDay() : today()->endOfDay();
+    
         if ($from->gt($to)) {
             [$from, $to] = [$to->copy()->startOfDay(), $from->copy()->endOfDay()];
         }
-
+    
         return [$from, $to];
     }
 

@@ -17,9 +17,15 @@ class PasswordController extends Controller
     {
         $validated = $request->validateWithBag('updatePassword', [
             'current_password' => ['required', 'current_password'],
-            'password' => ['required', Password::defaults(), 'confirmed'],
+            'password' => [
+                'required',
+                'regex:/^[\x20-\x7E]+$/',
+                \Illuminate\Validation\Rules\Password::defaults(),
+                'confirmed',
+            ],
+        ], [
+            'password.regex' => 'رمز عبور فقط باید شامل حروف انگلیسی، اعداد و نمادها باشد. استفاده از حروف فارسی مجاز نیست.',
         ]);
-
         $request->user()->update([
             'password' => Hash::make($validated['password']),
         ]);

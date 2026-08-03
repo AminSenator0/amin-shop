@@ -16,6 +16,7 @@ class ContactMessage extends Model
         'phone',
         'subject',
         'message',
+        'attachment',  // ← این خط جدید
         'is_read',
         'has_unread_reply_for_user',
         'last_replied_at',

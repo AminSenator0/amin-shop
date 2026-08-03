@@ -21,10 +21,21 @@ class RegisterRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
             'phone' => ['nullable', new IranMobile, 'unique:'.User::class.',phone'],
-            'password' => ['required', 'confirmed', Password::defaults()],
+            // ✅ اضافه شد: regex انگلیسی-only
+            'password' => ['required', 'confirmed', 'regex:/^[\x20-\x7E]+$/', Password::defaults()],
         ];
     }
-
+    
+    /**
+     * پیام‌های خطای فارسی
+     */
+    public function messages(): array
+    {
+        return [
+            'password.regex' => 'رمز عبور فقط باید شامل حروف انگلیسی، اعداد و نمادها باشد. استفاده از حروف فارسی مجاز نیست.',
+        ];
+    }
+    
     public function attributes(): array
     {
         return [

@@ -73,7 +73,9 @@ Route::get('/faq', [PageController::class, 'faq'])->name('pages.faq');
 Route::get('/about', [PageController::class, 'about'])->name('pages.about');
 Route::get('/rules', [PageController::class, 'rules'])->name('pages.rules');
 Route::get('/contact', [PageController::class, 'contact'])->name('pages.contact');
-Route::post('/contact', [ContactController::class, 'store'])->middleware('throttle:5,1')->name('contact.store');
+Route::post('/contact', [ContactController::class, 'store'])
+    ->middleware('throttle:contact')
+    ->name('contact.store');
 Route::get('/track-order', [OrderTrackingController::class, 'show'])->name('orders.track');
 Route::post('/newsletter', [NewsletterController::class, 'subscribe'])->middleware('throttle:5,1')->name('newsletter.subscribe');
 Route::get('/wishlist', [WishlistController::class, 'index'])->name('wishlist.index');
@@ -94,29 +96,35 @@ Route::middleware('auth')->group(function () {
     Route::post('/checkout/coupon', [CouponController::class, 'apply'])->middleware('throttle:10,1')->name('checkout.coupon.apply');
     Route::delete('/checkout/coupon', [CouponController::class, 'destroy'])->name('checkout.coupon.destroy');
     Route::get('/checkout/payment/{order}', [CheckoutController::class, 'payment'])->name('checkout.payment');
-    Route::post('/checkout/payment/{order}', [CheckoutController::class, 'processPayment'])->name('checkout.payment.process');
+    Route::post('/checkout/payment/{order}', [CheckoutController::class, 'processPayment'])
+    ->middleware('throttle:payment')
+    ->name('checkout.payment.process');
     Route::post('/products/{product}/reviews', [ReviewController::class, 'store'])->name('products.reviews.store');
 
     Route::prefix('account')->name('user.')->group(function () {
         Route::get('/', [UserDashboardController::class, 'index'])->name('dashboard');
         Route::get('/orders', [UserOrderController::class, 'index'])->name('orders.index');
+        Route::get('/cart', [CartController::class, 'index'])->name('cart.index');
         Route::get('/orders/{order}', [UserOrderController::class, 'show'])->name('orders.show');
         Route::post('/orders/{order}/cancel', [UserOrderController::class, 'cancel'])->name('orders.cancel');
         Route::post('/orders/{order}/reorder', [UserOrderController::class, 'reorder'])->name('orders.reorder');
         Route::post('/orders/{order}/returns', [UserReturnController::class, 'store'])->name('orders.returns.store');
-        Route::get('/orders/{order}/invoice', InvoiceController::class)->name('orders.invoice');
-        Route::get('/cart', [UserCartController::class, 'index'])->name('cart.index');
+        Route::get('/orders/{order}/invoice', [InvoiceController::class, 'show'])->name('orders.invoice');
         Route::get('/wishlist', [UserWishlistController::class, 'index'])->name('wishlist.index');
         Route::get('/reviews', [UserReviewController::class, 'index'])->name('reviews.index');
         Route::get('/returns', [UserReturnController::class, 'index'])->name('returns.index');
         Route::resource('addresses', AddressController::class)->except(['show']);
         Route::get('/coupons', [UserCouponController::class, 'index'])->name('coupons.index');
         Route::post('/coupons', [UserCouponController::class, 'store'])->middleware('throttle:10,1')->name('coupons.store');
-        Route::post('/coupons/{coupon}/apply', [UserCouponController::class, 'apply'])->name('coupons.apply');
+        Route::post('/coupons/{coupon}/apply', [UserCouponController::class, 'apply'])
+    ->middleware('throttle:coupon')
+    ->name('coupons.apply');
         Route::delete('/coupons/{coupon}', [UserCouponController::class, 'destroy'])->name('coupons.destroy');
         Route::get('/messages', [UserMessageController::class, 'index'])->name('messages.index');
         Route::get('/messages/new', [UserMessageController::class, 'create'])->name('messages.create');
-        Route::post('/messages', [UserMessageController::class, 'store'])->name('messages.store');
+        Route::post('/messages', [UserMessageController::class, 'store'])
+    ->middleware('throttle:contact')
+    ->name('messages.store');
         Route::get('/messages/{message}', [UserMessageController::class, 'show'])->name('messages.show');
         Route::post('/messages/{message}/reply', [UserMessageController::class, 'reply'])->name('messages.reply');
     });
@@ -148,7 +156,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::post('orders', [AdminOrderController::class, 'store'])->name('orders.store');
     Route::get('orders', [AdminOrderController::class, 'index'])->name('orders.index');
     Route::get('orders/{order}', [AdminOrderController::class, 'show'])->name('orders.show');
-    Route::get('orders/{order}/invoice', InvoiceController::class)->name('orders.invoice');
+    Route::get('orders/{order}/invoice', [InvoiceController::class, 'show'])->name('orders.invoice');
     Route::patch('orders/{order}/status', [AdminOrderController::class, 'updateStatus'])->name('orders.status');
     Route::patch('orders/{order}/tracking', [AdminOrderController::class, 'updateTracking'])->name('orders.tracking');
     Route::patch('orders/{order}/payment-status', [AdminOrderController::class, 'updatePaymentStatus'])->name('orders.payment-status');

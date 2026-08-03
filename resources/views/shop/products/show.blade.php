@@ -33,13 +33,15 @@
 
 @section('content')
 @php
+    $product->loadMissing('attributeValues.attribute'); // ← اضافه شده
     $inWishlist = app(\App\Services\WishlistService::class)->has($product->id);
     $gallery = $product->images->isNotEmpty()
         ? $product->images
         : ($product->image ? collect([(object)['path' => $product->image]]) : collect());
     $avgRating = $product->averageRating();
     $hasDescription = filled($product->description);
-    $hasSpecs = $product->brand || $product->weight || $product->sku;
+    $hasAttributes = $product->attributeValues->isNotEmpty(); // ← اضافه شده
+    $hasSpecs = $product->brand || $product->weight || $product->sku || $hasAttributes; // ← آپدیت شد
     $hasSizeChart = $product->hasSizeChart();
     $defaultTab = $hasDescription ? 'description' : ($hasSizeChart ? 'size-chart' : ($hasSpecs ? 'specs' : 'reviews'));
     $cartQty = app(\App\Services\CartService::class)->quantityFor($product->id);
@@ -184,10 +186,14 @@
                                     <tr>
                                         <th scope="row">وضعیت موجودی</th>
                                         <td>
-                                            @if($product->isInStock())
-                                                <span class="product-spec-badge product-spec-badge--success">{{ format_number($product->stock) }} عدد موجود</span>
+                                            @if($product->hasVariants())
+                                                <span id="variant-stock-display" class="product-spec-badge product-spec-badge--success">سایز و رنگ را انتخاب کنید</span>
                                             @else
-                                                <span class="product-spec-badge product-spec-badge--danger">ناموجود</span>
+                                                @if($product->isInStock())
+                                                    <span class="product-spec-badge product-spec-badge--success">{{ format_number($product->stock) }} عدد موجود</span>
+                                                @else
+                                                    <span class="product-spec-badge product-spec-badge--danger">ناموجود</span>
+                                                @endif
                                             @endif
                                         </td>
                                     </tr>
@@ -197,6 +203,14 @@
                                             <td>{{ format_number($store['returnDays']) }} روز</td>
                                         </tr>
                                     @endif
+
+                                    {{-- مشخصات فنی داینامیک (Attributes) ← اضافه شده --}}
+                                    @foreach($product->attributeValues as $attrValue)
+                                        <tr>
+                                            <th scope="row">{{ $attrValue->attribute->name }}</th>
+                                            <td>{{ $attrValue->value }}</td>
+                                        </tr>
+                                    @endforeach
                                 </tbody>
                             </table>
                         </div>
@@ -293,3 +307,43 @@
     @endif
 </div>
 @endsection
+
+@push('scripts')
+<script>
+(function() {
+    const variants = @json(
+        $product->variants->mapWithKeys(fn($v) => [
+            ($v->size ?? '_') . '|' . ($v->color ?? '_') => $v->stock
+        ])
+    );
+
+    function updateStockDisplay() {
+        const sizeEl = document.querySelector('input[name="size"]:checked, select[name="size"]');
+        const colorEl = document.querySelector('input[name="color"]:checked, select[name="color"]');
+        const display = document.getElementById('variant-stock-display');
+        if (!display) return;
+
+        const size = sizeEl?.value || '_';
+        const color = colorEl?.value || '_';
+        const stock = variants[size + '|' + color];
+
+        if (stock !== undefined) {
+            if (stock > 0) {
+                display.textContent = new Intl.NumberFormat('fa-IR').format(stock) + ' عدد موجود';
+                display.className = 'product-spec-badge product-spec-badge--success';
+            } else {
+                display.textContent = 'ناموجود';
+                display.className = 'product-spec-badge product-spec-badge--danger';
+            }
+        } else {
+            display.textContent = 'سایز و رنگ را انتخاب کنید';
+            display.className = 'product-spec-badge product-spec-badge--success';
+        }
+    }
+
+    document.querySelectorAll('input[name="size"], select[name="size"], input[name="color"], select[name="color"]').forEach(el => {
+        el.addEventListener('change', updateStockDisplay);
+    });
+})();
+</script>
+@endpush

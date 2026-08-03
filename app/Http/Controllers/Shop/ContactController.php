@@ -10,8 +10,14 @@ class ContactController extends Controller
 {
     public function store(ContactRequest $request)
     {
+        $data = $request->validated();
+        
+        if ($request->hasFile('attachment')) {
+            $data['attachment'] = upload_message_attachment($request->file('attachment'));
+        }
+        
         ContactMessage::create([
-            ...$request->validated(),
+            ...$data,
             'user_id' => auth()->id(),
         ]);
 

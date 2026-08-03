@@ -2,6 +2,7 @@
 
 @php
     use App\Enums\OrderStatus;
+    use App\Enums\PaymentStatus;
 
     $steps = [
         ['label' => 'ثبت سفارش', 'done' => true, 'date' => $order->created_at],
@@ -12,10 +13,47 @@
     ];
 
     $isCancelled = $order->status === OrderStatus::Cancelled;
-@endphp
+
+    // ═══ تایمر ۲۰ دقیقه ═══
+    $isPendingForTimer = ! $isCancelled && $order->status === OrderStatus::Pending && $order->payment_status === PaymentStatus::Pending;
+    $expiresAt = $order->created_at->addMinutes(20);
+    $remainingSeconds = $isPendingForTimer ? max(0, (int) now()->diffInSeconds($expiresAt, false)) : 0;
+    @endphp
 
 <div class="user-timeline-card">
     <h2 class="mb-6 text-base font-black text-shop-text">پیگیری وضعیت سفارش</h2>
+
+    {{-- ═══ تایمر مهلت پرداخت ═══ --}}
+    @if($isPendingForTimer && $remainingSeconds > 0)
+        <div x-data="{
+            remaining: {{ $remainingSeconds }},
+            timer: null,
+            format(sec) {
+                const m = Math.floor(sec / 60).toString().padStart(2, '0');
+                const s = (sec % 60).toString().padStart(2, '0');
+                return m + ':' + s;
+            },
+            init() {
+                this.timer = setInterval(() => {
+                    this.remaining--;
+                    if (this.remaining <= 0) {
+                        clearInterval(this.timer);
+                        window.location.reload();
+                    }
+                }, 1000);
+            }
+        }" x-init="init()" class="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-center">
+            <p class="text-amber-800 font-bold text-sm">
+                ⏳ مهلت پرداخت: <span x-text="format(remaining)" class="font-mono"></span>
+            </p>
+            <p class="text-amber-600 text-xs mt-1">بعد از اتمام مهلت، سفارش خودکار لغو و موجودی بازگردانده می‌شود.</p>
+        </div>
+    @elseif($isPendingForTimer && $remainingSeconds <= 0)
+        <div class="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-center">
+            <p class="text-red-700 font-bold text-sm">⚠️ مهلت پرداخت به پایان رسیده است.</p>
+            <p class="text-red-600 text-xs mt-1">این سفارش به زودی به صورت خودکار لغو می‌شود.</p>
+        </div>
+    @endif
 
     @if($isCancelled)
         <div class="flex items-center gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3.5 text-sm font-medium text-rose-700">

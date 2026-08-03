@@ -7,6 +7,7 @@ use App\Http\Requests\Admin\ProductRequest;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\ProductAttribute;
 use App\Models\ProductImage;
 use App\Services\FileUploadService;
 use App\Services\ProductFormUploadCache;
@@ -48,8 +49,9 @@ class ProductController extends Controller
 
         $categories = Category::where('is_active', true)->orderBy('name')->get();
         $brands = Brand::where('is_active', true)->orderBy('name')->get();
+        $attributes = ProductAttribute::where('is_active', true)->orderBy('sort_order')->get();
 
-        return view('admin.products.create', compact('categories', 'brands'));
+        return view('admin.products.create', compact('categories', 'brands', 'attributes'));
     }
 
     public function store(ProductRequest $request)
@@ -67,6 +69,9 @@ class ProductController extends Controller
         DB::transaction(function () use ($data, $request) {
             $product = Product::create($data);
             $this->syncProductImages($product, $request);
+            $this->syncVariants($product, $request);
+            $this->syncAttributes($product, $request);
+            $this->syncCustomFields($product, $request); // ← اضافه شده
         });
         $this->uploadCache->clear();
 
@@ -83,11 +88,12 @@ class ProductController extends Controller
             $this->uploadCache->clear();
         }
 
-        $product->load('images');
+        $product->load('images', 'variants', 'attributeValues.attribute', 'customFields'); // ← customFields اضافه شد
         $categories = Category::where('is_active', true)->orderBy('name')->get();
         $brands = Brand::where('is_active', true)->orderBy('name')->get();
+        $attributes = ProductAttribute::where('is_active', true)->orderBy('sort_order')->get();
 
-        return view('admin.products.edit', compact('product', 'categories', 'brands'));
+        return view('admin.products.edit', compact('product', 'categories', 'brands', 'attributes'));
     }
 
     public function update(ProductRequest $request, Product $product)
@@ -107,6 +113,9 @@ class ProductController extends Controller
         DB::transaction(function () use ($product, $data, $request) {
             $product->update($data);
             $this->syncProductImages($product, $request);
+            $this->syncVariants($product, $request);
+            $this->syncAttributes($product, $request);
+            $this->syncCustomFields($product, $request); // ← اضافه شده
         });
         $this->uploadCache->clear();
 
@@ -162,6 +171,102 @@ class ProductController extends Controller
 
         return response()->file(Storage::disk('local')->path($path));
     }
+
+    // ─── متد جدید: همگام‌سازی Custom Fields ──────────────────
+    private function syncCustomFields(Product $product, Request $request): void
+    {
+        $fields = $request->input('custom_fields', []);
+
+        // حذف فیلدهای قبلی
+        $product->customFields()->delete();
+
+        foreach ($fields as $index => $field) {
+            $label = trim($field['label'] ?? '');
+            if ($label === '') {
+                continue;
+            }
+
+            $type = $field['type'] ?? 'text';
+            $options = null;
+
+            // اگر نوع select بود، گزینه‌ها رو از textarea پارس کن (هر خط یک گزینه)
+            if ($type === 'select' && !empty($field['options'])) {
+                $lines = preg_split('/[\r\n]+/', $field['options']);
+                $options = array_values(array_filter(array_map('trim', $lines)));
+                $options = $options !== [] ? $options : null;
+            }
+
+            $product->customFields()->create([
+                'label' => $label,
+                'type' => $type,
+                'options' => $options,
+                'is_required' => !empty($field['is_required']),
+                'sort_order' => (int) ($field['sort_order'] ?? $index),
+            ]);
+        }
+    }
+    // ─── پایان متد جدید ───────────────────────────────────────
+
+    // ─── متد Attribute (قبلی) ─────────────────────────────────
+    private function syncAttributes(Product $product, Request $request): void
+    {
+        $attributes = $request->input('attributes', []);
+
+        $product->attributeValues()->delete();
+
+        foreach ($attributes as $attr) {
+            $attributeId = $attr['attribute_id'] ?? null;
+            $value = trim($attr['value'] ?? '');
+
+            if ($attributeId && $value !== '') {
+                $product->attributeValues()->create([
+                    'product_attribute_id' => (int) $attributeId,
+                    'value' => $value,
+                ]);
+            }
+        }
+    }
+    // ─── پایان متد Attribute ─────────────────────────────────
+
+    // ─── متد واریانت (قبلی) ──────────────────────────────────
+    private function syncVariants(Product $product, Request $request): void
+    {
+        $sizes = $product->sizes ?? [];
+        $colors = $product->colors ?? [];
+
+        if (empty($sizes) && empty($colors)) {
+            $product->variants()->delete();
+            return;
+        }
+
+        $stocks = $request->input('variant_stock', []);
+        $inputSizes = $request->input('variant_size', []);
+        $inputColors = $request->input('variant_color', []);
+
+        $syncedIds = [];
+
+        foreach ($stocks as $key => $stock) {
+            $size = $inputSizes[$key] ?? null;
+            $color = $inputColors[$key] ?? null;
+
+            if ($size === '') $size = null;
+            if ($color === '') $color = null;
+
+            if ($size && !in_array($size, $sizes, true)) continue;
+            if ($color && !in_array($color, $colors, true)) continue;
+
+            $variant = $product->variants()->updateOrCreate(
+                ['size' => $size, 'color' => $color],
+                ['stock' => max(0, (int) $stock)]
+            );
+
+            $syncedIds[] = $variant->id;
+        }
+
+        $product->variants()->whereNotIn('id', $syncedIds)->delete();
+        $product->update(['stock' => $product->variants()->sum('stock')]);
+    }
+    // ─── پایان متد واریانت ───────────────────────────────────
 
     private function syncProductImages(Product $product, Request $request): void
     {

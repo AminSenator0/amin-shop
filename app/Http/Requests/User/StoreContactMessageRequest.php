@@ -16,6 +16,7 @@ class StoreContactMessageRequest extends FormRequest
         return [
             'subject' => ['required', 'string', 'max:200'],
             'message' => ['required', 'string', 'max:2000'],
+            'attachment' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf,doc,docx', 'max:5120'], // ← جدید
         ];
     }
 

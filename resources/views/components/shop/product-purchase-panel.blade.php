@@ -151,17 +151,86 @@
                         </div>
                         @error('quantity')<p class="product-option-error">{{ $message }}</p>@enderror
                     </div>
+
+                    {{-- ═══ فیلدهای سفارشی — طراحی مدرن ═══ --}}
+                    @if($product->hasCustomFields())
+                        <div style="margin-top: 1.25rem; padding: 1rem; background: #f9fafb; border-radius: 0.875rem; border: 1px solid #f3f4f6;">
+                            {{-- هدر بخش --}}
+                            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
+                                <svg style="width: 1rem; height: 1rem; color: #6b7280; flex-shrink: 0;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                </svg>
+                                <span style="font-size: 0.75rem; font-weight: 800; color: #6b7280; letter-spacing: 0.025em;">اطلاعات تکمیلی</span>
+                            </div>
+
+                            {{-- لیست فیلدها --}}
+                            <div style="display: flex; flex-direction: column; gap: 1rem;">
+                                @foreach($product->customFields as $field)
+                                    <div>
+                                        {{-- لیبل --}}
+                                        <label for="cf-{{ $field->id }}" style="display: block; font-size: 0.8125rem; font-weight: 600; color: #374151; margin-bottom: 0.375rem;">
+                                            {{ $field->label }}
+                                            @if($field->is_required)
+                                                <span style="color: #ef4444; margin-right: 0.125rem;">*</span>
+                                            @endif
+                                        </label>
+
+                                        @if($field->type === 'select')
+                                            {{-- دراپ‌داون شیک --}}
+                                            <div style="position: relative;">
+                                                <select name="custom_fields[{{ $field->id }}]" id="cf-{{ $field->id }}"
+                                                        {{ $field->is_required ? 'required' : '' }}
+                                                        style="width: 100%; appearance: none; -webkit-appearance: none; background-color: #ffffff; border: 1px solid #d1d5db; border-radius: 0.625rem; padding: 0.625rem 2.5rem 0.625rem 0.875rem; font-size: 0.875rem; color: #111827; line-height: 1.25rem; transition: all 0.2s ease; outline: none; cursor: pointer;"
+                                                        onfocus="this.style.borderColor='#9ca3af'; this.style.boxShadow='0 0 0 3px rgba(156, 163, 175, 0.1)';"
+                                                        onblur="this.style.borderColor='#d1d5db'; this.style.boxShadow='none';">
+                                                    <option value="" disabled selected style="color: #9ca3af;">انتخاب کنید...</option>
+                                                    @foreach($field->options ?? [] as $option)
+                                                        <option value="{{ $option }}">{{ $option }}</option>
+                                                    @endforeach
+                                                </select>
+                                                {{-- آیکون فلش --}}
+                                                <svg style="position: absolute; left: 0.875rem; top: 50%; transform: translateY(-50%); width: 1rem; height: 1rem; color: #9ca3af; pointer-events: none;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                            </div>
+                                        @else
+                                            {{-- اینپوت شیک --}}
+                                            <input type="{{ $field->type }}"
+                                                   name="custom_fields[{{ $field->id }}]"
+                                                   id="cf-{{ $field->id }}"
+                                                   placeholder="{{ $field->label }} را وارد کنید..."
+                                                   {{ $field->is_required ? 'required' : '' }}
+                                                   style="width: 100%; background-color: #ffffff; border: 1px solid #d1d5db; border-radius: 0.625rem; padding: 0.625rem 0.875rem; font-size: 0.875rem; color: #111827; line-height: 1.25rem; transition: all 0.2s ease; outline: none;"
+                                                   onfocus="this.style.borderColor='#9ca3af'; this.style.boxShadow='0 0 0 3px rgba(156, 163, 175, 0.1)';"
+                                                   onblur="this.style.borderColor='#d1d5db'; this.style.boxShadow='none';">
+                                        @endif
+
+                                        @error("custom_fields.{$field->id}")
+                                            <p style="margin-top: 0.375rem; font-size: 0.75rem; color: #ef4444; font-weight: 500;">{{ $message }}</p>
+                                        @enderror
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+                    {{-- ═══ پایان فیلدهای سفارشی ═══ --}}
                 </div>
 
                 @if($cartQty > 0)
-                    <a href="{{ route('cart.index') }}" class="btn-primary product-add-btn">
-                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121 0 1.879-.902 1.987-1.995l1.283-12.132A1.125 1.125 0 0018.168 6H5.833"/></svg>
-                        مشاهده سبد خرید
-                    </a>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <a href="{{ route('cart.index') }}" class="btn-primary product-add-btn flex-1">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121 0 1.879-.902 1.987-1.995l1.283-12.132A1.125 1.125 0 0018.168 6H5.833"/></svg>
+                            مشاهده سبد
+                        </a>
+                        <button type="submit" class="btn-primary product-add-btn">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                            افزودن سبد
+                        </button>
+                    </div>
                 @else
                     <button type="submit" class="btn-primary product-add-btn">
                         <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5V6a3.75 3.75 0 117.5 0v4.5"/></svg>
-                        افزودن به سبد
+                        افزودن به سبد خرید
                     </button>
                 @endif
             </form>
@@ -173,34 +242,90 @@
         @endif
 
         <div class="product-secondary-actions">
-            <form method="POST" action="{{ route('wishlist.toggle', $product) }}">
-                @csrf
-                <button
-                    type="{{ $inWishlist ? 'button' : 'submit' }}"
-                    @if($inWishlist)
-                        data-delete-confirm
-                        data-confirm-title="حذف از علاقه‌مندی‌ها"
-                        data-confirm-message="آیا می‌خواهید این محصول را از علاقه‌مندی‌ها حذف کنید؟"
-                    @endif
-                    class="product-wishlist-btn {{ $inWishlist ? 'is-active' : '' }}"
-                >
-                    <svg class="h-5 w-5" fill="{{ $inWishlist ? 'currentColor' : 'none' }}" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z"/></svg>
-                    {{ $inWishlist ? 'در علاقه‌مندی‌ها' : 'علاقه‌مندی' }}
-                </button>
-            </form>
+        <form
+    method="POST"
+    action="{{ route('wishlist.toggle', $product) }}"
+    @if($inWishlist)
+        data-delete-confirm
+        data-confirm-title="حذف از علاقه‌مندی‌ها"
+        data-confirm-message="آیا می‌خواهید این محصول را از علاقه‌مندی‌ها حذف کنید؟"
+    @endif
+>
+    @csrf
+
+<button
+    type="submit"
+    class="product-wishlist-btn {{ $inWishlist ? 'is-active' : '' }}"
+>
+    <svg
+        class="h-5 w-5"
+        fill="{{ $inWishlist ? 'currentColor' : 'none' }}"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        stroke-width="1.75"
+    >
+        <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z"
+        />
+    </svg>
+
+    {{ $inWishlist ? 'در علاقه‌مندی‌ها' : 'علاقه‌مندی' }}
+</button>
+
+</form>
+
 
             <button
                 type="button"
                 class="product-share-btn"
-                x-data="{ copied: false }"
-                @click="navigator.clipboard.writeText(window.location.href); copied = true; setTimeout(() => copied = false, 2000)"
+                onclick="handleShare(this)"
             >
                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z"/></svg>
-                <span x-text="copied ? 'کپی شد!' : 'اشتراک‌گذاری'"></span>
+                <span class="share-label">اشتراک‌گذاری</span>
             </button>
         </div>
     </div>
+    
+    <script>
+function handleShare(btn) {
+    const url = window.location.href;
+    const label = btn.querySelector('.share-label');
+    
+    // ۱. اول سعی کن Web Share API (گوشی native share)
+    if (navigator.share) {
+        navigator.share({
+            title: document.title,
+            url: url
+        }).catch(() => {});
+        return;
+    }
+    
+    // ۲. fallback: کپی لینک
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(() => {
+            label.textContent = 'کپی شد!';
+            setTimeout(() => label.textContent = 'اشتراک‌گذاری', 2000);
+        }).catch(() => {
+            fallbackCopy(url, label);
+        });
+    } else {
+        fallbackCopy(url, label);
+    }
+}
 
+function fallbackCopy(text, label) {
+    const input = document.createElement('input');
+    input.value = text;
+    document.body.appendChild(input);
+    input.select();
+    document.execCommand('copy');
+    document.body.removeChild(input);
+    label.textContent = 'کپی شد!';
+    setTimeout(() => label.textContent = 'اشتراک‌گذاری', 2000);
+}
+</script>
     @unless($compact)
         <div class="product-trust-grid">
             @foreach(array_slice($store['trustBadges'], 0, 3) as $badge)

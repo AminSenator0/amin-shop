@@ -58,6 +58,28 @@ class ProductRequest extends FormRequest
             'remove_images.*' => ['integer', Rule::exists('product_images', 'id')],
             'images' => ['nullable', 'array', 'max:10'],
             ...UploadRules::files('images', 'product', 10),
+            
+            // ─── قوانین واریانت ─────────────────────────
+            'variant_stock' => ['nullable', 'array'],
+            'variant_stock.*' => ['nullable', 'integer', 'min:0'],
+            'variant_size' => ['nullable', 'array'],
+            'variant_color' => ['nullable', 'array'],
+            // ─── پایان قوانین واریانت ───────────────────
+
+            // ─── قوانین Attribute ───────────────────────
+            'attributes' => ['nullable', 'array'],
+            'attributes.*.attribute_id' => ['required_with:attributes', 'integer', 'exists:product_attributes,id'],
+            'attributes.*.value' => ['required_with:attributes', 'string', 'max:500'],
+            // ─── پایان قوانین Attribute ─────────────────
+
+            // ─── قوانین Custom Fields ───────────────────
+            'custom_fields' => ['nullable', 'array'],
+            'custom_fields.*.label' => ['required_with:custom_fields', 'string', 'max:200'],
+            'custom_fields.*.type' => ['required_with:custom_fields', 'in:text,select,email,password'],
+            'custom_fields.*.options' => ['nullable', 'string', 'max:2000'],
+            'custom_fields.*.is_required' => ['boolean'],
+            'custom_fields.*.sort_order' => ['integer', 'min:0'],
+            // ─── پایان قوانین Custom Fields ─────────────
         ];
     }
 

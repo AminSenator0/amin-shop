@@ -28,6 +28,39 @@
 
             <div class="user-dash-list">
                 @foreach($actionOrders as $order)
+                    @php
+                        $isPendingForTimer = $order->status->value === 'pending' && $order->payment_status->value === 'pending';
+                        $expiresAt = $order->created_at->addMinutes(20);
+                        $remainingSeconds = $isPendingForTimer ? max(0, (int) now()->diffInSeconds($expiresAt, false)) : 0;
+                    @endphp
+
+                    @if($isPendingForTimer && $remainingSeconds > 0)
+                        <div x-data="{
+                            remaining: {{ $remainingSeconds }},
+                            timer: null,
+                            format(sec) {
+                                const m = Math.floor(sec / 60).toString().padStart(2, '0');
+                                const s = (sec % 60).toString().padStart(2, '0');
+                                return m + ':' + s;
+                            },
+                            init() {
+                                this.timer = setInterval(() => {
+                                    this.remaining--;
+                                    if (this.remaining <= 0) {
+                                        clearInterval(this.timer);
+                                        window.location.reload();
+                                    }
+                                }, 1000);
+                            }
+                        }" x-init="init()" class="mb-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700">
+                            ⏳ مهلت پرداخت: <span x-text="format(remaining)" class="font-mono"></span>
+                        </div>
+                    @elseif($isPendingForTimer && $remainingSeconds <= 0)
+                        <div class="mb-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700">
+                            ⚠️ مهلت پرداخت به پایان رسید
+                        </div>
+                    @endif
+
                     <x-user.order-row :order="$order" />
                 @endforeach
 
