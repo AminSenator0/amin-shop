@@ -91,11 +91,32 @@ class AuditLogService
     public static function insertBatch(array $batch): void
     {
         if (empty($batch)) return;
-
+    
+        // Normalize: array fields → json, enums → string value
+        $normalized = array_map(function ($record) {
+            // JSON encode array fields
+            foreach (['payload', 'old_values', 'new_values'] as $field) {
+                if (isset($record[$field]) && is_array($record[$field])) {
+                    $record[$field] = json_encode($record[$field], JSON_UNESCAPED_UNICODE);
+                }
+            }
+    
+            // Enum fields → string value (for raw insert)
+            foreach (['action', 'category', 'severity'] as $field) {
+                if (isset($record[$field]) && $record[$field] instanceof \BackedEnum) {
+                    $record[$field] = $record[$field]->value;
+                }
+            }
+    
+            return $record;
+        }, $batch);
+    
         try {
-            AuditLog::insert($batch);
+            AuditLog::insert($normalized);
         } catch (\Throwable $e) {
             Log::error('AuditLog batch insert failed: ' . $e->getMessage());
+            
+            // Fallback: insert one by one with Eloquent (casts work here)
             foreach ($batch as $record) {
                 try {
                     AuditLog::create($record);

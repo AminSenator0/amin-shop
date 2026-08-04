@@ -208,7 +208,8 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
         Route::get('/ip/{ip}', [AuditLogController::class, 'ipDetail'])->name('ip-detail');
         Route::get('/user/{user}/activity', [AuditLogController::class, 'userActivity'])->name('user-activity');
         Route::get('/admin/{admin}/activity', [AuditLogController::class, 'adminActivity'])->name('admin-activity');
-        
+        Route::get('{auditLog}/show', [AuditLogController::class, 'show'])->name('show');
+    
         Route::get('/alerts', [SecurityAlertController::class, 'index'])->name('alerts');
         Route::patch('/alerts/{alert}/resolve', [SecurityAlertController::class, 'resolve'])->name('alerts.resolve');
         

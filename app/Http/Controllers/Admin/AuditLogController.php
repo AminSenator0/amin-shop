@@ -137,6 +137,79 @@ class AuditLogController extends Controller
         return view('admin.audit-logs.admin-activity', compact('admin', 'summary', 'recentLogs'));
     }
 
+    public function show(AuditLog $auditLog)
+    {
+        $auditLog->load('user');
+        
+        return response()->json([
+            'id' => $auditLog->id,
+            'severity' => [
+                'value' => $auditLog->severity->value,
+                'label' => $auditLog->severity->label(),
+                'badge_class' => $auditLog->severity->badgeClass(),
+            ],
+            'category' => [
+                'value' => $auditLog->category->value,
+                'label' => $auditLog->category->label(),
+                'icon' => $auditLog->category->icon(),
+            ],
+            'action' => [
+                'value' => $auditLog->action->value,
+                'label' => $auditLog->action->label(),
+            ],
+            'user' => $auditLog->user ? [
+                'id' => $auditLog->user->id,
+                'name' => $auditLog->user->name,
+                'email' => $auditLog->user->email,
+                'link' => route('admin.audit-logs.user-activity', $auditLog->user),
+            ] : null,
+            'ip_address' => $auditLog->ip_address,
+            'masked_ip' => $auditLog->masked_ip,
+            'browser' => $this->parseBrowser($auditLog->user_agent),
+            'device_fingerprint' => $auditLog->device_fingerprint,
+            'url' => $auditLog->url,
+            'method' => $auditLog->method,
+            'payload' => $auditLog->payload,
+            'old_values' => $auditLog->old_values,
+            'new_values' => $auditLog->new_values,
+            'description' => $auditLog->description,
+            'reference' => $auditLog->reference_type && $auditLog->reference_id ? [
+                'type' => $auditLog->reference_type,
+                'id' => $auditLog->reference_id,
+                'label' => class_basename($auditLog->reference_type) . ' #' . $auditLog->reference_id,
+            ] : null,
+            'session_id' => $auditLog->session_id ? substr($auditLog->session_id, 0, 16) . '...' : null,
+            'created_at' => verta($auditLog->created_at)->format('Y/m/d H:i:s'),
+            'created_at_diff' => $auditLog->created_at->diffForHumans(),
+        ]);
+    }
+    
+    private function parseBrowser(?string $userAgent): array
+    {
+        if (!$userAgent) return ['name' => 'Unknown', 'os' => 'Unknown', 'device' => 'Unknown', 'raw' => ''];
+        
+        $browser = 'Unknown';
+        $os = 'Unknown';
+        
+        if (str_contains($userAgent, 'Chrome')) $browser = 'Chrome';
+        elseif (str_contains($userAgent, 'Firefox')) $browser = 'Firefox';
+        elseif (str_contains($userAgent, 'Safari')) $browser = 'Safari';
+        elseif (str_contains($userAgent, 'Edge')) $browser = 'Edge';
+        
+        if (str_contains($userAgent, 'Windows')) $os = 'Windows';
+        elseif (str_contains($userAgent, 'Mac')) $os = 'macOS';
+        elseif (str_contains($userAgent, 'Linux')) $os = 'Linux';
+        elseif (str_contains($userAgent, 'Android')) $os = 'Android';
+        elseif (str_contains($userAgent, 'iPhone') || str_contains($userAgent, 'iPad')) $os = 'iOS';
+        
+        return [
+            'name' => $browser,
+            'os' => $os,
+            'device' => str_contains($userAgent, 'Mobile') ? 'Mobile' : 'Desktop',
+            'raw' => substr($userAgent, 0, 120) . (strlen($userAgent) > 120 ? '...' : ''),
+        ];
+    }
+
     private function applyFilters($query, Request $request): void
     {
         if ($request->filled('severity')) {
