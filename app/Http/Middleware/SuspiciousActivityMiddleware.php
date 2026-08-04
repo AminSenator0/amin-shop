@@ -121,12 +121,22 @@ class SuspiciousActivityMiddleware
         Cache::put($cacheKey, $count, now()->addMinutes(5));
 
         if ($count >= 5) {
+            // ✅ هشدار امنیتی
+            AuditLogService::log(
+                LogAction::MASS_FORGOT_PASSWORD,
+                null,
+                ['ip' => $ip, 'count' => $count],
+                severity: LogSeverity::HIGH
+            );
+
             SecurityAlertService::checkRealtime(
                 LogAction::FORGOT_PASSWORD_REQUESTED,
                 $ip,
                 null,
                 ['count' => $count]
             );
+
+            Cache::forget($cacheKey);
         }
     }
 
@@ -136,13 +146,32 @@ class SuspiciousActivityMiddleware
         $count = Cache::increment($cacheKey);
         Cache::put($cacheKey, $count, now()->addMinutes(10));
 
-        if ($count >= 10) {
+        // شمارش کاربران مختلف
+        $usersKey = "reset_password_users:{$ip}";
+        $users = Cache::get($usersKey, []);
+        if ($userId && !in_array($userId, $users)) {
+            $users[] = $userId;
+            Cache::put($usersKey, $users, now()->addMinutes(10));
+        }
+
+        if ($count >= 10 || count($users) >= 3) {
+            // ✅ هشدار امنیتی
+            AuditLogService::log(
+                LogAction::MASS_RESET_REQUESTS,
+                null,
+                ['ip' => $ip, 'count' => $count, 'unique_users' => count($users)],
+                severity: LogSeverity::CRITICAL
+            );
+
             SecurityAlertService::checkRealtime(
                 LogAction::RESET_PASSWORD_SUCCESS,
                 $ip,
-                $userId,
-                ['count' => $count]
+                null,
+                ['count' => $count, 'unique_users' => count($users)]
             );
+
+            Cache::forget($cacheKey);
+            Cache::forget($usersKey);
         }
     }
 

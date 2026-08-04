@@ -3,6 +3,7 @@
 namespace App\Observers;
 
 use App\Enums\LogAction;
+use App\Enums\LogSeverity;
 use App\Models\Product;
 use App\Services\AuditLogService;
 
@@ -32,19 +33,16 @@ class ProductObserver
         $action = LogAction::PRODUCT_UPDATED;
         $description = "ویرایش محصول {$product->name}";
 
-        // تشخیص تغییر قیمت
         if (isset($changes['price'])) {
             $action = LogAction::PRICE_CHANGED;
             $description = "تغییر قیمت {$product->name}: {$original['price']} → {$changes['price']}";
         }
 
-        // تشخیص تغییر موجودی
         if (isset($changes['stock'])) {
             $action = LogAction::STOCK_CHANGED;
             $description = "تغییر موجودی {$product->name}: {$original['stock']} → {$changes['stock']}";
         }
 
-        // تشخیص تغییر تخفیف
         if (isset($changes['discount_price']) || isset($changes['discount_percent'])) {
             $action = LogAction::DISCOUNT_CHANGED;
         }

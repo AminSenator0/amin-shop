@@ -3,6 +3,7 @@
 namespace App\Listeners;
 
 use App\Enums\LogAction;
+use App\Enums\LogSeverity;
 use App\Services\AuditLogService;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
@@ -25,7 +26,6 @@ class LogAuthenticationEvents
             "ورود موفق از IP: " . Request::ip()
         );
 
-        // بررسی IP/دستگاه جدید
         $this->checkNewDevice($user);
     }
 
@@ -43,7 +43,6 @@ class LogAuthenticationEvents
             severity: LogSeverity::WARNING
         );
 
-        // بررسی چندین تلاش ناموفق
         $this->checkMultipleFailedAttempts($email);
     }
 
@@ -78,8 +77,8 @@ class LogAuthenticationEvents
     {
         $ip = Request::ip();
         $cacheKey = "failed_login:{$ip}";
-        $count = Cache::increment($cacheKey);
-        Cache::put($cacheKey, $count, now()->addMinutes(5));
+        $count = \Cache::increment($cacheKey);
+        \Cache::put($cacheKey, $count, now()->addMinutes(5));
 
         if ($count >= 10) {
             AuditLogService::log(
@@ -89,7 +88,6 @@ class LogAuthenticationEvents
                 severity: LogSeverity::CRITICAL
             );
 
-            // هشدار امنیتی
             SecurityAlertService::checkRealtime(
                 LogAction::LOGIN_FAILED,
                 $ip,
@@ -97,7 +95,6 @@ class LogAuthenticationEvents
                 ['email' => $email, 'count' => $count]
             );
 
-            // Auto-block IP
             AuditLogService::blockIp(
                 $ip,
                 "10 failed login attempts in 5 minutes",

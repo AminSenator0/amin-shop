@@ -7,6 +7,7 @@ use App\Listeners\LogAuthenticationEvents;
 use App\Models\ContactMessage;
 use App\Models\Coupon;
 use App\Models\Order;
+use App\Observers\OrderObserver;
 use App\Models\OrderReturn;
 use App\Models\Product;
 use App\Models\Review;
@@ -59,15 +60,16 @@ class AppServiceProvider extends ServiceProvider
         Product::observe(ProductObserver::class);
         User::observe(UserObserver::class);
         Coupon::observe(CouponObserver::class);
+        Order::observe(OrderObserver::class);  // ← اضافه شد
 
 
         // ═══════════════════════════════════════════════
         // Event Listeners (Audit Logging)
         // ═══════════════════════════════════════════════
 
-        Event::listen(Login::class, [LogAuthenticationEvents::class, 'handleLogin']);
-        Event::listen(Failed::class, [LogAuthenticationEvents::class, 'handleFailed']);
-        Event::listen(Logout::class, [LogAuthenticationEvents::class, 'handleLogout']);
+        // Event::listen(Login::class, [LogAuthenticationEvents::class, 'handleLogin']);
+        // Event::listen(Failed::class, [LogAuthenticationEvents::class, 'handleFailed']);
+        // Event::listen(Logout::class, [LogAuthenticationEvents::class, 'handleLogout']);
 
         // Uncomment if you have custom Order/Payment events:
         // Event::listen(\App\Events\OrderCreated::class, [\App\Listeners\LogOrderEvents::class, 'handleOrderCreated']);

@@ -8,13 +8,13 @@ use App\Enums\LogSeverity;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class AuditLog extends Model
 {
     use HasFactory;
 
     public $timestamps = false;
+
     protected $fillable = [
         'user_id', 'action', 'category', 'severity',
         'ip_address', 'user_agent', 'device_fingerprint',
@@ -35,12 +35,7 @@ class AuditLog extends Model
 
     public function user(): BelongsTo
     {
-        return $this->belongsTo(User::class)->withTrashed();
-    }
-
-    public function reference(): MorphTo
-    {
-        return $this->morphTo();
+        return $this->belongsTo(User::class);
     }
 
     public function scopeForUser($query, $userId)

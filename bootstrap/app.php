@@ -21,8 +21,10 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\NormalizePersianInput::class,
             \App\Http\Middleware\StoreMaintenanceMiddleware::class,
             \App\Http\Middleware\TrackSiteVisit::class,
+            \App\Http\Middleware\PostAuthAuditMiddleware::class, // ← اضافه شد
             AuditLogMiddleware::class,
             SuspiciousActivityMiddleware::class,
+            
         ]);
 
         $middleware->alias([

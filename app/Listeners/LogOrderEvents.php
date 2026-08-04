@@ -3,6 +3,7 @@
 namespace App\Listeners;
 
 use App\Enums\LogAction;
+use App\Enums\LogSeverity;
 use App\Services\AuditLogService;
 
 class LogOrderEvents

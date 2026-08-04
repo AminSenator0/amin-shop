@@ -3,6 +3,7 @@
 namespace App\Observers;
 
 use App\Enums\LogAction;
+use App\Enums\LogSeverity;
 use App\Models\User;
 use App\Services\AuditLogService;
 

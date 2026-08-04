@@ -92,7 +92,11 @@ class AuditLogController extends Controller
             'total_requests' => AuditLog::forIp($ip)->count(),
             'login_failed' => AuditLog::forIp($ip)->where('action', LogAction::LOGIN_FAILED)->count(),
             'login_success' => AuditLog::forIp($ip)->where('action', LogAction::LOGIN_SUCCESS)->count(),
-            'errors_403' => AuditLog::forIp($ip)->where('action', LogAction::MASS_403_ERRORS)->orWhere('action', LogAction::ADMIN_ACCESS_ATTEMPT)->count(),
+            'errors_403' => AuditLog::forIp($ip)
+            ->where(function ($q) {
+                $q->where('action', LogAction::MASS_403_ERRORS)
+                  ->orWhere('action', LogAction::ADMIN_ACCESS_ATTEMPT);
+            })->count(),
         ];
 
         $recentLogs = AuditLog::forIp($ip)->with('user')
