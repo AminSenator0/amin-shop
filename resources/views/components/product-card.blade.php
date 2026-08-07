@@ -20,14 +20,18 @@
         <div class="product-card-accent" aria-hidden="true"></div>
     @endif
     <a href="{{ $productUrl }}" class="product-card-media block">
-        <div class="product-card-image-wrap">
+    <div class="product-card-image-wrap" style="aspect-ratio: 1/1;">
             @if($thumbnailUrl = $product->thumbnailUrl())
                 <img
                     src="{{ $thumbnailUrl }}"
                     alt="{{ $product->name }}"
                     loading="lazy"
+                    decoding="async"
                     class="product-card-image"
+                    style="width: 100%; height: 100%; object-fit: cover;"
                 >
+            @else
+                <div class="product-card-image product-card-image--placeholder" aria-hidden="true"></div>
             @endif
 
             <div class="product-card-badges">

@@ -22,6 +22,8 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\StoreMaintenanceMiddleware::class,
             \App\Http\Middleware\TrackSiteVisit::class,
             \App\Http\Middleware\PostAuthAuditMiddleware::class, // ← اضافه شد
+            \App\Http\Middleware\MinifyHtml::class, // ← اضافه شد
+            \App\Http\Middleware\SecurityHeaders::class, // ← اضافه شد
             AuditLogMiddleware::class,
             SuspiciousActivityMiddleware::class,
             

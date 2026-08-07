@@ -26,6 +26,9 @@
         <link rel="canonical" href="{{ url()->current() }}">
     @endif
     
+    {{-- Critical Preloads (LCP Optimization) --}}
+    @stack('preload')
+    
     {{-- Open Graph (Facebook, Telegram, WhatsApp) --}}
     <meta property="og:site_name" content="{{ $store['name'] }}">
     <meta property="og:locale" content="fa_IR">

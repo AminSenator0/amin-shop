@@ -21,6 +21,7 @@ use App\Services\WishlistService;
 use App\Support\HomepageContent;
 use App\Support\StoreSettings;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 
 class HomeController extends Controller
 {
@@ -33,51 +34,70 @@ class HomeController extends Controller
 
     public function index(RecentlyViewedService $recentlyViewed)
     {
-        $featuredProducts = $this->productQuery()
-            ->where('is_active', true)
-            ->where('is_featured', true)
-            ->latest()
-            ->take(8)
-            ->get();
+        // ── کش داده‌های عمومی (بالاترین تأثیر روی TTFB) ──
 
-        $latestProducts = $this->productQuery()
-            ->where('is_active', true)
-            ->latest()
-            ->take(8)
-            ->get();
+        $featuredProducts = Cache::remember('home_featured_products', 600, fn () =>
+            $this->productQuery()
+                ->where('is_active', true)
+                ->where('is_featured', true)
+                ->latest()
+                ->take(8)
+                ->get()
+        );
 
-        $categories = Category::where('is_active', true)
-            ->orderBy('sort_order')
-            ->get();
+        $latestProducts = Cache::remember('home_latest_products', 600, fn () =>
+            $this->productQuery()
+                ->where('is_active', true)
+                ->latest()
+                ->take(8)
+                ->get()
+        );
 
-        $sliders = Slider::active();
-        $banners = Banner::active('home');
+        $categories = Cache::remember('home_categories', 1800, fn () =>
+            Category::where('is_active', true)
+                ->orderBy('sort_order')
+                ->get()
+        );
 
-        $bestsellerIds = OrderItem::query()
-            ->join('orders', 'order_items.order_id', '=', 'orders.id')
-            ->where('orders.status', '!=', OrderStatus::Cancelled)
-            ->selectRaw('order_items.product_id, SUM(order_items.quantity) as total_sold')
-            ->groupBy('order_items.product_id')
-            ->orderByDesc('total_sold')
-            ->limit(8)
-            ->pluck('product_id');
+        $sliders = Cache::remember('home_sliders', 1800, fn () =>
+            Slider::active()
+        );
+
+        $banners = Cache::remember('home_banners', 1800, fn () =>
+            Banner::active('home')
+        );
+
+        $bestsellerIds = Cache::remember('home_bestseller_ids', 900, function () {
+            return OrderItem::query()
+                ->join('orders', 'order_items.order_id', '=', 'orders.id')
+                ->where('orders.status', '!=', OrderStatus::Cancelled)
+                ->selectRaw('order_items.product_id, SUM(order_items.quantity) as total_sold')
+                ->groupBy('order_items.product_id')
+                ->orderByDesc('total_sold')
+                ->limit(8)
+                ->pluck('product_id');
+        });
 
         $bestsellerProducts = $bestsellerIds->isNotEmpty()
-            ? $this->productQuery()
-                ->whereIn('id', $bestsellerIds)
-                ->where('is_active', true)
-                ->get()
-                ->sortBy(fn ($p) => $bestsellerIds->search($p->id))
-                ->values()
+            ? Cache::remember('home_bestseller_products', 900, function () use ($bestsellerIds) {
+                return $this->productQuery()
+                    ->whereIn('id', $bestsellerIds)
+                    ->where('is_active', true)
+                    ->get()
+                    ->sortBy(fn ($p) => $bestsellerIds->search($p->id))
+                    ->values();
+            })
             : collect();
 
-        $discountedProducts = $this->productQuery()
-            ->where('is_active', true)
-            ->whereNotNull('compare_price')
-            ->whereColumn('compare_price', '>', 'price')
-            ->orderByRaw('(compare_price - price) / compare_price DESC')
-            ->take(8)
-            ->get();
+        $discountedProducts = Cache::remember('home_discounted_products', 600, fn () =>
+            $this->productQuery()
+                ->where('is_active', true)
+                ->whereNotNull('compare_price')
+                ->whereColumn('compare_price', '>', 'price')
+                ->orderByRaw('(compare_price - price) / compare_price DESC')
+                ->take(8)
+                ->get()
+        );
 
         $heroMaxDiscount = (int) $discountedProducts->max(fn (Product $p) => $p->discountPercent());
 
@@ -87,29 +107,34 @@ class HomeController extends Controller
             $canonicalBrandSlugs
         ));
 
-        $brands = Brand::query()
-            ->where('is_active', true)
-            ->withCount(['products' => fn ($query) => $query->where('is_active', true)])
-            ->orderByRaw("CASE WHEN slug IN ({$slugOrder}) THEN 0 ELSE 1 END")
-            ->orderBy('name')
-            ->get()
-            ->unique('name')
-            ->take(12)
-            ->values();
+        $brands = Cache::remember('home_brands', 1800, function () use ($slugOrder) {
+            return Brand::query()
+                ->where('is_active', true)
+                ->withCount(['products' => fn ($query) => $query->where('is_active', true)])
+                ->orderByRaw("CASE WHEN slug IN ({$slugOrder}) THEN 0 ELSE 1 END")
+                ->orderBy('name')
+                ->get()
+                ->unique('name')
+                ->take(12)
+                ->values();
+        });
 
-        $testimonialReviews = Review::with(['user', 'product'])
-            ->where('is_approved', true)
-            ->whereNotNull('comment')
-            ->where('comment', '!=', '')
-            ->whereHas('product', fn ($query) => $query->where('is_active', true))
-            ->latest()
-            ->take(12)
-            ->get();
+        $testimonialReviews = Cache::remember('home_testimonial_reviews', 900, fn () =>
+            Review::with(['user', 'product'])
+                ->where('is_approved', true)
+                ->whereNotNull('comment')
+                ->where('comment', '!=', '')
+                ->whereHas('product', fn ($query) => $query->where('is_active', true))
+                ->latest()
+                ->take(12)
+                ->get()
+        );
 
-        $faqs = Faq::activeForHomepage();
-        $showFaqViewAll = Faq::hasMoreForHomepage();
-        $blogPosts = BlogPost::published(3);
+        $faqs = Cache::remember('home_faqs', 1800, fn () => Faq::activeForHomepage());
+        $showFaqViewAll = Cache::remember('home_faq_view_all', 1800, fn () => Faq::hasMoreForHomepage());
+        $blogPosts = Cache::remember('home_blog_posts', 1800, fn () => BlogPost::published(3));
 
+        // ── داده‌های کاربر خاص (بدون کش) ──
         $recentlyViewedProducts = $recentlyViewed->products(8);
 
         $recommendedProducts = collect();
@@ -124,6 +149,7 @@ class HomeController extends Controller
                 ->get();
         }
 
+        // ── داده‌های حساس به زمان (بدون کش یا کش خیلی کوتاه) ──
         $featuredCoupon = null;
         if (StoreSettings::bool('homepage_coupon_bar_enabled')) {
             $couponId = StoreSettings::int('homepage_featured_coupon_id');
@@ -150,13 +176,14 @@ class HomeController extends Controller
             }
         }
 
-        $shopStats = [
+        $shopStats = Cache::remember('home_shop_stats', 900, fn () => [
             'orders' => Order::where('status', '!=', OrderStatus::Cancelled)->count(),
             'customers' => User::count(),
             'avgRating' => round(Review::where('is_approved', true)->avg('rating') ?? 0, 1),
             'reviews' => Review::where('is_approved', true)->count(),
-        ];
+        ]);
 
+        // ─ه شخصی‌سازی Hero (کاربر خاص — بدون کش) ──
         $heroPersonalization = null;
         if (auth()->check()) {
             $user = auth()->user();

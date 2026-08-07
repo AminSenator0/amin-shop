@@ -37,6 +37,17 @@
 
 @section('content')
 
+@push('preload')
+@php $heroImagePreload = hero_showcase_image_sources(); @endphp
+@if($heroImagePreload['webp'])
+    <link rel="preload" as="image" href="{{ $heroImagePreload['webp'] }}" type="image/webp" fetchpriority="high">
+@elseif($heroImagePreload['jpg'])
+    <link rel="preload" as="image" href="{{ $heroImagePreload['jpg'] }}" fetchpriority="high">
+@else
+    <link rel="preload" as="image" href="{{ hero_showcase_image_url() }}" fetchpriority="high">
+@endif
+@endpush
+
 <div class="home-page">
 
 <x-home-sticky-nav :sections="$homeNavSections" />

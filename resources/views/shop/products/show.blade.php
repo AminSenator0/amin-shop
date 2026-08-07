@@ -44,7 +44,7 @@ $schemaProduct = [
     ],
     'aggregateRating' => $approvedCount > 0 ? [
         '@type' => 'AggregateRating',
-        'ratingValue' => $avgRating,
+        'ratingValue' => $product->averageRating(),
         'reviewCount' => $approvedCount,
     ] : null,
 ];
