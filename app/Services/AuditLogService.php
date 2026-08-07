@@ -8,6 +8,7 @@ use App\Enums\LogSeverity;
 use App\Jobs\ProcessAuditLogBatch;
 use App\Models\AuditLog;
 use App\Models\BlockedIp;
+use App\Services\SecurityAlertService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Request;
@@ -52,7 +53,7 @@ class AuditLogService
                 'description' => $description,
                 'reference_type' => $referenceType,
                 'reference_id' => $referenceId,
-                'session_id' => substr(session()->getId(), 0, 128),
+                'session_id' => hash('sha256', session()->getId()),
                 'created_at' => now(),
             ];
 
@@ -64,7 +65,7 @@ class AuditLogService
                 self::scheduleFlush();
             }
 
-            if ($severity === LogSeverity::CRITICAL) {
+            if (in_array($severity, [LogSeverity::CRITICAL, LogSeverity::HIGH])) {
                 self::flush();
                 self::triggerSecurityAlert($data);
             }
@@ -164,7 +165,11 @@ class AuditLogService
             'credit_card', 'card_number', 'cvv', 'secret', 'auth_code',
             'session_id', 'remember_token', 'private_key', 'merchant_id',
             'zarinpal_merchant', 'smtp_password', 'mail_password', 'api_key',
-        ];
+            'authorization', 'cookie', 'x-xsrf-token', 'new_password',
+            'current_password', 'otp', 'pin', 'ssh_key', 'access_token',
+            'refresh_token', 'bearer', 'csrf_token', '_token',
+];
+        
 
         array_walk_recursive($data, function (&$value, $key) use ($sensitiveKeys) {
             if (is_string($key)) {

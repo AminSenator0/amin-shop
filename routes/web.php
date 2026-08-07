@@ -183,6 +183,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::get('users', [AdminUserController::class, 'index'])->name('users.index');
     Route::get('users/{user}', [AdminUserController::class, 'show'])->name('users.show');
     Route::patch('users/{user}', [AdminUserController::class, 'update'])->name('users.update');
+    Route::delete('users/{user}', [AdminUserController::class, 'destroy'])->name('users.destroy');
     Route::resource('shipping', ShippingMethodController::class)->except(['show']);
     Route::resource('coupons', AdminCouponController::class)->except(['show']);
     Route::get('reviews', [AdminReviewController::class, 'index'])->name('reviews.index');
@@ -216,6 +217,9 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
         Route::get('/blocked-ips', [BlockedIpController::class, 'index'])->name('blocked-ips');
         Route::post('/blocked-ips', [BlockedIpController::class, 'store'])->name('blocked-ips.store');
         Route::delete('/blocked-ips/{blockedIp}', [BlockedIpController::class, 'destroy'])->name('blocked-ips.destroy');
+        
+
+        
     });
 });
 require __DIR__.'/auth.php';

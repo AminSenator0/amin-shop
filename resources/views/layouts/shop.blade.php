@@ -4,11 +4,43 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    
+    {{-- Title --}}
     <title>@yield('title', $store['name'])</title>
-    @php $pageDescription = trim($__env->yieldContent('meta_description')) ?: $store['metaDescription']; @endphp
+    
+    {{-- Meta Description --}}
+    @php
+        $pageDescription = trim($__env->yieldContent('meta_description')) ?: ($store['metaDescription'] ?? $store['tagline'] ?? 'فروشگاه آنلاین ' . $store['name']);
+    @endphp
     @if($pageDescription)
         <meta name="description" content="{{ $pageDescription }}">
     @endif
+    
+    {{-- Canonical URL --}}
+    @php
+        $canonicalUrl = trim($__env->yieldContent('canonical'));
+    @endphp
+    @if($canonicalUrl)
+        <link rel="canonical" href="{{ $canonicalUrl }}">
+    @else
+        <link rel="canonical" href="{{ url()->current() }}">
+    @endif
+    
+    {{-- Open Graph (Facebook, Telegram, WhatsApp) --}}
+    <meta property="og:site_name" content="{{ $store['name'] }}">
+    <meta property="og:locale" content="fa_IR">
+    @yield('open_graph')
+    
+    {{-- Twitter Card --}}
+    @yield('twitter_card')
+    
+    {{-- Schema.org JSON-LD --}}
+    @yield('schema')
+    
+    {{-- Pagination prev/next (برای صفحات لیست) --}}
+    @yield('pagination_seo')
+    
+    {{-- Existing components --}}
     <x-favicon />
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <x-theme-variables />

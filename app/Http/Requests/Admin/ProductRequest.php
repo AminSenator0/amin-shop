@@ -124,7 +124,8 @@ class ProductRequest extends FormRequest
         /** @var Product|null $product */
         $product = $this->route('product');
         $removed = array_map('intval', (array) $this->input('remove_images', []));
-        $sort = json_decode($this->input('image_sort', '[]'), true) ?: [];
+        $sortRaw = $this->input('image_sort', '[]');
+        $sort = is_array($sortRaw) ? $sortRaw : (json_decode($sortRaw, true) ?: []);
         $count = 0;
 
         foreach ($sort as $entry) {

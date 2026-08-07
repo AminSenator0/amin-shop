@@ -31,6 +31,7 @@ npm run build
 php artisan serve
 php artisan schedule:work
 php artisan queue:work
+C:\Users\TS\Music\shop\public\robots.txt
 ```
 
 سایت: [http://127.0.0.1:8000](http://127.0.0.1:8000)

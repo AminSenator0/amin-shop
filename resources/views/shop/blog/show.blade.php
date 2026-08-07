@@ -1,7 +1,68 @@
 @extends('layouts.shop')
 
-@section('title', $post->title.' — '.$store['name'])
+@section('title', $post->title . ' | وبلاگ ' . $store['name'])
+
 @section('meta_description', $post->excerpt ?: \Illuminate\Support\Str::limit(strip_tags($post->content), 160))
+
+@section('canonical', route('blog.show', $post->slug))
+
+@section('open_graph')
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="{{ $post->title }}">
+    <meta property="og:description" content="{{ $post->excerpt ?: \Illuminate\Support\Str::limit(strip_tags($post->content), 200) }}">
+    <meta property="og:url" content="{{ route('blog.show', $post->slug) }}">
+    <meta property="og:image" content="{{ $post->imageUrl() }}">
+    <meta property="article:published_time" content="{{ $post->published_at?->toIso8601String() ?? $post->created_at->toIso8601String() }}">
+    <meta property="article:author" content="{{ $store['name'] }}">
+@endsection
+
+@section('twitter_card')
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ $post->title }}">
+    <meta name="twitter:description" content="{{ $post->excerpt ?: \Illuminate\Support\Str::limit(strip_tags($post->content), 200) }}">
+    <meta name="twitter:image" content="{{ $post->imageUrl() }}">
+@endsection
+
+@push('head')
+<script type="application/ld+json">
+{!! json_encode([
+    '@context' => 'https://schema.org',
+    '@type' => 'BlogPosting',
+    'headline' => $post->title,
+    'image' => $post->imageUrl(),
+    'datePublished' => $post->published_at?->toIso8601String() ?? $post->created_at->toIso8601String(),
+    'dateModified' => $post->updated_at->toIso8601String(),
+    'author' => [
+        '@type' => 'Organization',
+        'name' => $store['name'],
+    ],
+    'publisher' => [
+        '@type' => 'Organization',
+        'name' => $store['name'],
+        'logo' => [
+            '@type' => 'ImageObject',
+            'url' => asset('images/logo.png'),
+        ],
+    ],
+    'description' => $post->excerpt ?: \Illuminate\Support\Str::limit(strip_tags($post->content), 300),
+    'mainEntityOfPage' => [
+        '@type' => 'WebPage',
+        '@id' => route('blog.show', $post->slug),
+    ],
+], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) !!}
+</script>
+<script type="application/ld+json">
+{!! json_encode([
+    '@context' => 'https://schema.org',
+    '@type' => 'BreadcrumbList',
+    'itemListElement' => [
+        ['@type' => 'ListItem', 'position' => 1, 'name' => 'خانه', 'item' => route('home')],
+        ['@type' => 'ListItem', 'position' => 2, 'name' => 'وبلاگ', 'item' => route('blog.index')],
+        ['@type' => 'ListItem', 'position' => 3, 'name' => $post->title, 'item' => route('blog.show', $post->slug)],
+    ],
+], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) !!}
+</script>
+@endpush
 
 @section('content')
 <article class="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">

@@ -270,10 +270,16 @@ class ProductController extends Controller
 
     private function syncProductImages(Product $product, Request $request): void
     {
-        $sort = json_decode($request->input('image_sort', '[]'), true) ?: [];
+        $sortRaw = $request->input('image_sort', '[]');
+        $sort = is_array($sortRaw) ? $sortRaw : (json_decode($sortRaw, true) ?: []);
         $primaryToken = $request->input('primary_image');
         $removeIds = array_map('intval', (array) $request->input('remove_images', []));
         $newFiles = array_values($request->file('images', []) ?? []);
+
+        // ✅ اگه هیچ تغییری توی عکس‌ها نبود، هیچی حذف نکن
+        if (empty($sort) && empty($newFiles) && empty($removeIds)) {
+            return;
+        }
 
         foreach ($removeIds as $imageId) {
             $image = $product->images()->whereKey($imageId)->first();

@@ -1,6 +1,44 @@
 @extends('layouts.shop')
 
-@section('title', 'مقالات — '.$store['name'])
+@section('title', 'مقالات و راهنمای خرید | وبلاگ ' . $store['name'])
+
+@section('meta_description', 'مقالات، نکات خرید، تخفیف‌ها و راهنمای استفاده از محصولات در وبلاگ ' . $store['name'])
+
+@section('canonical', route('blog.index'))
+
+@section('open_graph')
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="مقالات و راهنمای خرید | وبلاگ {{ $store['name'] }}">
+    <meta property="og:description" content="مقالات، نکات خرید و راهنمای محصولات {{ $store['name'] }}">
+    <meta property="og:url" content="{{ route('blog.index') }}">
+@endsection
+
+@section('twitter_card')
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="مقالات و راهنمای خرید | وبلاگ {{ $store['name'] }}">
+    <meta name="twitter:description" content="مقالات، نکات خرید و راهنمای محصولات {{ $store['name'] }}">
+@endsection
+
+@section('pagination_seo')
+    @if($posts->currentPage() > 1)
+        <link rel="prev" href="{{ $posts->previousPageUrl() }}">
+    @endif
+    @if($posts->hasMorePages())
+        <link rel="next" href="{{ $posts->nextPageUrl() }}">
+    @endif
+@endsection
+
+@push('head')
+<script type="application/ld+json">
+{!! json_encode([
+    '@context' => 'https://schema.org',
+    '@type' => 'Blog',
+    'name' => 'وبلاگ ' . $store['name'],
+    'url' => route('blog.index'),
+    'description' => 'مقالات، نکات خرید و راهنمای محصولات ' . $store['name'],
+], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) !!}
+</script>
+@endpush
 
 @section('content')
 <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">

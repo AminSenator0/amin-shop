@@ -94,6 +94,9 @@
                     <td>
                         <x-admin.table-actions>
                             <x-admin.table-action type="view" :href="route('admin.users.show', $user)" title="جزئیات" />
+                            @if($user->id !== auth()->id())
+                            <x-admin.table-action type="delete" :action="route('admin.users.destroy', $user)" title="حذف" />
+                            @endif
                         </x-admin.table-actions>
                     </td>
                 </tr>

@@ -1,6 +1,6 @@
 @extends('layouts.shop')
 
-@section('title', 'صفحه اصلی')
+@section('title', ($store['tagline'] ? $store['name'] . ' | ' . $store['tagline'] : $store['name']))
 
 @php
     $productCount = \App\Models\Product::where('is_active', true)->count();
@@ -33,7 +33,7 @@
     ]));
 @endphp
 
-@section('meta_description', $store['metaDescription'])
+@section('meta_description', $store['metaDescription'] ?? 'خرید آنلاین از ' . $store['name'] . ' - ' . ($store['tagline'] ?? 'بهترین محصولات با قیمت مناسب و ارسال سریع'))
 
 @section('content')
 
@@ -435,17 +435,45 @@
 <x-home-back-to-top />
 
 @push('head')
+<link rel="canonical" href="{{ route('home') }}">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="{{ $store['name'] }}">
+<meta property="og:description" content="{{ $store['tagline'] ?? $store['metaDescription'] ?? 'فروشگاه آنلاین ' . $store['name'] }}">
+<meta property="og:url" content="{{ route('home') }}">
+<meta property="og:image" content="{{ asset('images/og-default.jpg') }}">
+<meta property="og:site_name" content="{{ $store['name'] }}">
+<meta property="og:locale" content="fa_IR">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ $store['name'] }}">
+<meta name="twitter:description" content="{{ $store['tagline'] ?? $store['metaDescription'] ?? 'فروشگاه آنلاین ' . $store['name'] }}">
+<meta name="twitter:image" content="{{ asset('images/og-default.jpg') }}">
+
 <script type="application/ld+json">
 {!! json_encode([
     '@context' => 'https://schema.org',
     '@type' => 'WebSite',
     'name' => $store['name'],
-    'url' => url('/'),
+    'url' => route('home'),
     'potentialAction' => [
         '@type' => 'SearchAction',
         'target' => route('products.index').'?search={search_term_string}',
         'query-input' => 'required name=search_term_string',
     ],
+], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) !!}
+</script>
+<script type="application/ld+json">
+{!! json_encode([
+    '@context' => 'https://schema.org',
+    '@type' => 'Organization',
+    'name' => $store['name'],
+    'url' => route('home'),
+    'logo' => asset('images/logo.png'),
+    'sameAs' => array_values(array_filter([
+        $store['instagram'] ?? null,
+        $store['telegram'] ?? null,
+    ])),
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) !!}
 </script>
 @endpush

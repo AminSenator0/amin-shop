@@ -55,10 +55,18 @@ class HomepageSettingsRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
-        $this->merge([
-            'homepage_featured_coupon_id' => (int) normalize_numeric_string($this->input('homepage_featured_coupon_id', '0')),
-        ]);
-
+        $couponId = $this->input('homepage_featured_coupon_id');
+        
+        // اگه خالی یا 0 باشه → null بذار (تا nullable validation رد کنه)
+        if ($couponId === null || $couponId === '' || $couponId === '0' || $couponId === 0) {
+            $this->merge([
+                'homepage_featured_coupon_id' => null,
+            ]);
+        } else {
+            $this->merge([
+                'homepage_featured_coupon_id' => (int) normalize_numeric_string($couponId),
+            ]);
+        }
         if ($this->filled('homepage_flash_sale_ends_at')) {
             $parsed = parse_jalali($this->input('homepage_flash_sale_ends_at'));
             if ($parsed) {

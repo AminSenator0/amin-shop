@@ -1,17 +1,36 @@
 @extends('layouts.shop')
 
-@section('title', $product->meta_title ?: $product->name)
-@if($product->meta_description)
-@section('meta_description', $product->meta_description)
-@endif
+@section('title', ($product->meta_title ?: $product->name) . ' | خرید ' . $product->name . ' از ' . $store['name'])
+
+@section('meta_description', $product->meta_description ?: Str::limit(strip_tags($product->short_description ?: $product->description ?? 'خرید آنلاین ' . $product->name . ' از ' . $store['name']), 160))
+
+@section('canonical', route('products.show', $product->slug))
+
+@section('open_graph')
+    <meta property="og:type" content="product">
+    <meta property="og:title" content="{{ $product->meta_title ?: $product->name }}">
+    <meta property="og:description" content="{{ Str::limit(strip_tags($product->short_description ?: $product->description ?? ''), 200) }}">
+    <meta property="og:url" content="{{ route('products.show', $product->slug) }}">
+    <meta property="og:image" content="{{ $product->thumbnailUrl() }}">
+    <meta property="og:site_name" content="{{ $store['name'] }}">
+    <meta property="product:price:amount" content="{{ $product->price }}">
+    <meta property="product:price:currency" content="IRR">
+@endsection
+
+@section('twitter_card')
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ $product->meta_title ?: $product->name }}">
+    <meta name="twitter:description" content="{{ Str::limit(strip_tags($product->short_description ?: $product->description ?? ''), 200) }}">
+    <meta name="twitter:image" content="{{ $product->thumbnailUrl() }}">
+@endsection
 
 @push('head')
-<script type="application/ld+json">
-{!! json_encode([
+@php
+$schemaProduct = [
     '@context' => 'https://schema.org',
     '@type' => 'Product',
     'name' => $product->name,
-    'description' => $product->short_description ?: strip_tags($product->description ?? ''),
+    'description' => strip_tags($product->short_description ?: $product->description ?? ''),
     'sku' => $product->sku,
     'image' => $product->thumbnailUrl(),
     'brand' => $product->brand ? ['@type' => 'Brand', 'name' => $product->brand->name] : null,
@@ -21,27 +40,44 @@
         'priceCurrency' => 'IRR',
         'availability' => $product->isInStock() ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
         'url' => route('products.show', $product->slug),
+        'itemCondition' => 'https://schema.org/NewCondition',
     ],
     'aggregateRating' => $approvedCount > 0 ? [
         '@type' => 'AggregateRating',
-        'ratingValue' => $product->averageRating(),
+        'ratingValue' => $avgRating,
         'reviewCount' => $approvedCount,
     ] : null,
-], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) !!}
+];
+$schemaProduct = array_filter($schemaProduct, fn($v) => $v !== null);
+@endphp
+<script type="application/ld+json">
+{!! json_encode($schemaProduct, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) !!}
+</script>
+<script type="application/ld+json">
+{!! json_encode([
+    '@context' => 'https://schema.org',
+    '@type' => 'BreadcrumbList',
+    'itemListElement' => [
+        ['@type' => 'ListItem', 'position' => 1, 'name' => 'خانه', 'item' => route('home')],
+        ['@type' => 'ListItem', 'position' => 2, 'name' => 'محصولات', 'item' => route('products.index')],
+        ['@type' => 'ListItem', 'position' => 3, 'name' => $product->category->name, 'item' => route('products.index', ['category' => $product->category->slug])],
+        ['@type' => 'ListItem', 'position' => 4, 'name' => $product->name, 'item' => route('products.show', $product->slug)],
+    ],
+], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) !!}
 </script>
 @endpush
 
 @section('content')
 @php
-    $product->loadMissing('attributeValues.attribute'); // ← اضافه شده
+    $product->loadMissing('attributeValues.attribute');
     $inWishlist = app(\App\Services\WishlistService::class)->has($product->id);
     $gallery = $product->images->isNotEmpty()
         ? $product->images
         : ($product->image ? collect([(object)['path' => $product->image]]) : collect());
     $avgRating = $product->averageRating();
     $hasDescription = filled($product->description);
-    $hasAttributes = $product->attributeValues->isNotEmpty(); // ← اضافه شده
-    $hasSpecs = $product->brand || $product->weight || $product->sku || $hasAttributes; // ← آپدیت شد
+    $hasAttributes = $product->attributeValues->isNotEmpty();
+    $hasSpecs = $product->brand || $product->weight || $product->sku || $hasAttributes;
     $hasSizeChart = $product->hasSizeChart();
     $defaultTab = $hasDescription ? 'description' : ($hasSizeChart ? 'size-chart' : ($hasSpecs ? 'specs' : 'reviews'));
     $cartQty = app(\App\Services\CartService::class)->quantityFor($product->id);

@@ -220,20 +220,19 @@ enum LogAction: string
         return match($this) {
             self::LOGIN_SUCCESS,
             self::LOGOUT,
-            self::PASSWORD_CHANGED,
             self::RESET_PASSWORD_SUCCESS,
             self::PAYMENT_SUCCESS,
             self::ORDER_CREATED,
             self::ORDER_PAID,
             self::ADMIN_LOGIN_SUCCESS => LogSeverity::INFO,
-
+    
             self::LOGIN_FAILED,
             self::FORGOT_PASSWORD_REQUESTED,
             self::PAYMENT_FAILED,
             self::PAYMENT_CALLBACK,
             self::ORDER_CANCELLED_USER,
             self::COUPON_UNAUTHORIZED_USE => LogSeverity::WARNING,
-
+    
             self::MULTIPLE_LOGIN_FAILED,
             self::ADMIN_LOGIN_FAILED,
             self::DUPLICATE_TRANSACTION,
@@ -246,8 +245,11 @@ enum LogAction: string
             self::ADMIN_ACCESS_ATTEMPT,
             self::USER_HIT_ADMIN_ENDPOINTS,
             self::COUPON_REUSE_ATTEMPT,
-            self::MASS_403_ERRORS => LogSeverity::HIGH,
-
+            self::MASS_403_ERRORS,
+            self::PASSWORD_CHANGED,          // ← تغییر از INFO به HIGH
+            self::EMAIL_PHONE_CHANGED,       // ← تغییر از CRITICAL به HIGH (برای ادمین trigger می‌شه)
+            self::SITE_SETTINGS_CHANGED => LogSeverity::HIGH, // ← تغییر از INFO به HIGH
+    
             self::NEW_DEVICE_OR_IP,
             self::MASS_RESET_REQUESTS,
             self::ENDPOINT_FLOOD,
@@ -255,8 +257,10 @@ enum LogAction: string
             self::ORDER_AMOUNT_TAMPERED,
             self::PAYMENT_CALLBACK_MISMATCH,
             self::ABNORMAL_HTTP_REQUESTS,
-            self::EXCEPTION_THROWN => LogSeverity::CRITICAL,
-
+            self::EXCEPTION_THROWN,
+            self::PAYMENT_SETTINGS_CHANGED,  // ← تغییر از INFO به CRITICAL
+            self::SMTP_SETTINGS_CHANGED => LogSeverity::CRITICAL, // ← تغییر از INFO به CRITICAL
+    
             default => LogSeverity::INFO,
         };
     }

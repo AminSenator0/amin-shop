@@ -1,13 +1,67 @@
 @extends('layouts.shop')
 
-@section('title', 'محصولات')
+@php
+    $activeCategory = $categories->firstWhere('slug', request('category'));
+    $activeBrandsArr = (array) ($activeBrands ?? request('brands', []));
+    $sort = request('sort', 'newest');
+
+    // SEO Title
+    $seoTitle = 'محصولات';
+    if ($activeCategory) {
+        $seoTitle = $activeCategory->name . ' | خرید ' . $activeCategory->name;
+    } elseif (request()->filled('search')) {
+        $seoTitle = 'نتایج جستجو: ' . request('search');
+    } elseif (!empty($activeBrandsArr)) {
+        $brandName = $brands->firstWhere('slug', $activeBrandsArr[0])?->name ?? 'برند';
+        $seoTitle = 'محصولات ' . $brandName;
+    }
+    $seoTitle .= ' | ' . $store['name'];
+
+    // SEO Description
+    $seoDesc = 'مشاهده همه محصولات فروشگاه ' . $store['name'] . ' با بهترین قیمت و ارسال سریع';
+    if ($activeCategory) {
+        $seoDesc = 'خرید آنلاین ' . $activeCategory->name . ' از ' . $store['name'] . ' - ' . format_number($products->total()) . ' محصول با بهترین قیمت';
+    } elseif (request()->filled('search')) {
+        $seoDesc = 'نتایج جستجو برای «' . request('search') . '» در ' . $store['name'] . ' - ' . format_number($products->total()) . ' محصول';
+    }
+@endphp
+
+@section('title', $seoTitle)
+
+@section('meta_description', Str::limit($seoDesc, 160))
+
+@section('canonical', route('products.index', array_filter([
+    'category' => request('category'),
+    'search' => request('search'),
+    'brands' => !empty($activeBrandsArr) ? $activeBrandsArr : null,
+], fn($v) => $v !== null && $v !== '' && !(is_array($v) && empty($v)))))
+
+@section('open_graph')
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="{{ $seoTitle }}">
+    <meta property="og:description" content="{{ Str::limit($seoDesc, 200) }}">
+    <meta property="og:url" content="{{ url()->current() }}">
+@endsection
+
+@section('twitter_card')
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="{{ $seoTitle }}">
+    <meta name="twitter:description" content="{{ Str::limit($seoDesc, 200) }}">
+@endsection
+
+@section('pagination_seo')
+    @if($products->currentPage() > 1)
+        <link rel="prev" href="{{ $products->previousPageUrl() }}">
+    @endif
+    @if($products->hasMorePages())
+        <link rel="next" href="{{ $products->nextPageUrl() }}">
+    @endif
+@endsection
 
 @section('content')
 @php
     $inShoppingFlow = \App\Support\ShoppingFlow::isActive();
-    $activeCategory = $categories->firstWhere('slug', request('category'));
     $sort = request('sort', 'newest');
-
     $activeBrands = (array) ($activeBrands ?? request('brands', []));
 
     /*

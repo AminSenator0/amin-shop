@@ -1,20 +1,33 @@
-@props([
-    'product' => null,
-    'required' => false,
-])
-
 @php
     use App\Services\ProductFormUploadCache;
 
     $uploadCache = app(ProductFormUploadCache::class)->get();
     $cachedSort = is_array($uploadCache) ? ($uploadCache['image_sort'] ?? null) : null;
-    $sortSource = $cachedSort ?: old('image_sort', '[]');
+
+    $defaultSort = '[]';
+    if ($product && $product->images->isNotEmpty()) {
+        $defaultSort = json_encode($product->images->map(fn($img) => 'existing:' . $img->id)->values()->all());
+    }
+
+    $oldSort = old('image_sort');
+    if (is_array($oldSort)) {
+        $sortSource = json_encode($oldSort);
+    } elseif (is_string($oldSort) && $oldSort !== '') {
+        $sortSource = $oldSort;
+    } else {
+        $sortSource = $cachedSort ?: $defaultSort;
+    }
+
     $initialSort = json_decode($sortSource, true) ?: [];
     $initialPrimary = old('primary_image', is_array($uploadCache) ? ($uploadCache['primary_image'] ?? null) : null);
     $removedImages = array_map('intval', (array) old('remove_images', is_array($uploadCache) ? ($uploadCache['remove_images'] ?? []) : []));
 
     $existingMap = [];
     if ($product) {
+        if (! $product->relationLoaded('images')) {
+            $product->load('images');
+        }
+
         foreach ($product->images as $image) {
             $existingMap[$image->id] = [
                 'type' => 'existing',
@@ -92,16 +105,30 @@
             $initialPrimary = $first['type'].':'.($first['id'] ?? $first['key']);
         }
     }
+
+    $fallbackId = 'img-fb-' . ($product?->id ?? 'new');
+    $managerConfig = json_encode([
+        'required' => $required,
+        'initialItems' => array_values($initialItems),
+        'initialPrimary' => $initialPrimary,
+        'removedImages' => $removedImages,
+    ], JSON_UNESCAPED_UNICODE);
 @endphp
+
+<style>
+    [x-cloak] { display: none !important; }
+</style>
+
+{{-- DEBUG — موقت — بعداً پاک کن --}}
+{{-- <div style="background:#ef4444;color:white;padding:12px;font-family:monospace;font-size:12px;">
+    DEBUG: items={{ count($initialItems) }}, config={{ $managerConfig }}
+</div> --}}
 
 <div
     {{ $attributes->merge(['class' => 'admin-image-manager']) }}
-    x-data="productImageManager({
-        required: @json($required),
-        initialItems: @json(array_values($initialItems)),
-        initialPrimary: @json($initialPrimary),
-        removedImages: @json($removedImages),
-    })"
+    x-data="productImageManager({{ $managerConfig }})"
+    x-init="console.log('Alpine init, items:', items.length); var fb = document.getElementById('{{ $fallbackId }}'); if(fb) fb.style.display='none';"
+    x-cloak
 >
     <input type="hidden" name="image_sort" x-ref="sortInput" value="{{ $sortSource }}">
     <input type="hidden" name="primary_image" x-ref="primaryInput" value="{{ old('primary_image', is_array($uploadCache) ? ($uploadCache['primary_image'] ?? '') : '') }}">
@@ -174,3 +201,19 @@
         <p class="admin-field-error mt-2">{{ $message }}</p>
     @enderror
 </div>
+
+{{-- Fallback pure HTML — وقتی Alpine fail می‌شه --}}
+@if(count($initialItems) > 0)
+<div id="{{ $fallbackId }}" class="admin-image-manager-grid" style="margin-top:1rem;">
+    @foreach($initialItems as $item)
+        <div class="admin-image-card">
+            <div class="admin-image-card-preview">
+                <img src="{{ $item['url'] }}" alt="{{ $item['name'] }}" class="admin-image-card-img">
+            </div>
+            <div class="admin-image-card-body">
+                <p class="admin-image-card-name">{{ $item['name'] }}</p>
+            </div>
+        </div>
+    @endforeach
+</div>
+@endif

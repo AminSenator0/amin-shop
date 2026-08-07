@@ -138,4 +138,29 @@ class UserController extends Controller
             ->route('admin.users.show', $user)
             ->with('success', 'اطلاعات کاربر به‌روزرسانی شد.');
     }
+
+    public function destroy(User $user)
+    {
+        // ادمین اصلی (خودش) رو نمی‌تونه حذف کنه
+        if ($user->id === auth()->id()) {
+            return back()->with('error', 'شما نمی‌توانید حساب کاربری خود را حذف کنید.');
+        }
+
+        $name = $user->name;
+        $email = $user->email;
+
+        // لاگ حذف کاربر
+        \App\Services\AuditLogService::log(
+            \App\Enums\LogAction::USER_DELETED,
+            auth()->id(),
+            ['deleted_user_id' => $user->id, 'name' => $name, 'email' => $email],
+            severity: \App\Enums\LogSeverity::HIGH
+        );
+
+        $user->delete();
+
+        return redirect()
+            ->route('admin.users.index')
+            ->with('success', "کاربر {$name} با موفقیت حذف شد.");
+    }
 }

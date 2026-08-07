@@ -6,6 +6,7 @@ use App\Enums\LogAction;
 use App\Enums\LogSeverity;
 use App\Models\AuditLog;
 use App\Services\AuditLogService;
+use App\Services\SecurityAlertService;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -206,16 +207,19 @@ class AuditLogMiddleware
     {
         $email = $request->input('email', 'unknown');
         $ip = $request->ip();
+        $path = $request->path();
         $location = $response->headers->get('Location', '');
         $isFailed = str_contains($location, 'login');
+        $isAdmin = $path === 'admin/login';
 
         if (!$isFailed && $response->isRedirect()) {
             session(['audit_login_pending' => [
                 'email' => $email,
                 'ip' => $ip,
+                'is_admin' => $isAdmin,
             ]]);
         } else {
-            $this->logLoginFailed($email, $ip);
+            $this->logLoginFailed($email, $ip, $isAdmin);
         }
     }
 
@@ -225,45 +229,34 @@ class AuditLogMiddleware
             $user = Auth::user();
             if (!$user) return;
             
-            $isAdmin = method_exists($user, 'isAdmin') && $user->isAdmin();
+            $isAdmin = $data['is_admin'] ?? (method_exists($user, 'isAdmin') && $user->isAdmin());
             $action = $isAdmin ? LogAction::ADMIN_LOGIN_SUCCESS : LogAction::LOGIN_SUCCESS;
 
-            AuditLog::create([
-                'user_id' => $user->id,
-                'action' => $action,
-                'category' => $action->category(),
-                'severity' => $action->defaultSeverity(),
-                'ip_address' => $data['ip'] ?? request()->ip(),
-                'user_agent' => substr(request()->userAgent() ?? '', 0, 500),
-                'device_fingerprint' => hash('sha256', request()->userAgent() . request()->ip()),
-                'url' => substr(request()->fullUrl(), 0, 500),
-                'method' => 'POST',
-                'payload' => ['email' => $data['email'] ?? $user->email],
-                'description' => "ورود موفق از IP: " . ($data['ip'] ?? request()->ip()),
-                'created_at' => now(),
-            ]);
+            AuditLogService::log(
+                $action,
+                $user->id,
+                ['email' => $data['email'] ?? $user->email],
+                severity: $action->defaultSeverity()
+            );
         } catch (\Throwable $e) {
             \Log::error('[AuditLog] logLoginSuccess failed: ' . $e->getMessage());
         }
     }
 
-    private function logLoginFailed(string $email, string $ip): void
+    private function logLoginFailed(string $email, string $ip, bool $isAdmin = false): void
     {
         try {
-            AuditLog::create([
-                'user_id' => null,
-                'action' => LogAction::LOGIN_FAILED,
-                'category' => LogAction::LOGIN_FAILED->category(),
-                'severity' => LogSeverity::WARNING,
-                'ip_address' => $ip,
-                'user_agent' => substr(request()->userAgent() ?? '', 0, 500),
-                'device_fingerprint' => hash('sha256', request()->userAgent() . $ip),
-                'url' => substr(request()->fullUrl(), 0, 500),
-                'method' => 'POST',
-                'payload' => ['email' => $email],
-                'description' => "ورود ناموفق — ایمیل: {$email} — IP: {$ip}",
-                'created_at' => now(),
-            ]);
+            $action = $isAdmin ? LogAction::ADMIN_LOGIN_FAILED : LogAction::LOGIN_FAILED;
+
+            AuditLogService::log(
+                $action,
+                null,
+                ['email' => $email],
+                severity: $action->defaultSeverity()
+            );
+
+            // تلاش لاگین برای چندین حساب مختلف از یک IP
+            SecurityAlertService::checkMultiAccountLogin($ip, $email);
         } catch (\Throwable $e) {
             \Log::error('[AuditLog] logLoginFailed failed: ' . $e->getMessage());
         }
@@ -272,20 +265,12 @@ class AuditLogMiddleware
     private function logLogout(int $userId, string $email, Request $request): void
     {
         try {
-            AuditLog::create([
-                'user_id' => $userId,
-                'action' => LogAction::LOGOUT,
-                'category' => LogAction::LOGOUT->category(),
-                'severity' => LogAction::LOGOUT->defaultSeverity(),
-                'ip_address' => $request->ip(),
-                'user_agent' => substr($request->userAgent() ?? '', 0, 500),
-                'device_fingerprint' => hash('sha256', $request->userAgent() . $request->ip()),
-                'url' => substr($request->fullUrl(), 0, 500),
-                'method' => 'POST',
-                'payload' => ['email' => $email],
-                'description' => "خروج از حساب",
-                'created_at' => now(),
-            ]);
+            AuditLogService::log(
+                LogAction::LOGOUT,
+                $userId,
+                ['email' => $email],
+                severity: LogSeverity::INFO
+            );
         } catch (\Throwable $e) {
             \Log::error('[AuditLog] logLogout failed: ' . $e->getMessage());
         }
@@ -294,20 +279,12 @@ class AuditLogMiddleware
     private function logPasswordChanged($user, Request $request): void
     {
         try {
-            AuditLog::create([
-                'user_id' => $user->id,
-                'action' => LogAction::PASSWORD_CHANGED,
-                'category' => LogAction::PASSWORD_CHANGED->category(),
-                'severity' => LogAction::PASSWORD_CHANGED->defaultSeverity(),
-                'ip_address' => $request->ip(),
-                'user_agent' => substr($request->userAgent() ?? '', 0, 500),
-                'device_fingerprint' => hash('sha256', $request->userAgent() . $request->ip()),
-                'url' => substr($request->fullUrl(), 0, 500),
-                'method' => 'PUT',
-                'payload' => ['email' => $user->email],
-                'description' => "تغییر رمز عبور توسط کاربر {$user->name}",
-                'created_at' => now(),
-            ]);
+            AuditLogService::log(
+                LogAction::PASSWORD_CHANGED,
+                $user->id,
+                ['email' => $user->email],
+                severity: LogSeverity::HIGH
+            );
         } catch (\Throwable $e) {
             \Log::error('[AuditLog] logPasswordChanged failed: ' . $e->getMessage());
         }
@@ -391,60 +368,36 @@ class AuditLogMiddleware
             // Site Settings
             // ═══════════════════════════════════════════════
             if (!empty($changedSite)) {
-                AuditLog::create([
-                    'user_id' => $user->id,
-                    'action' => LogAction::SITE_SETTINGS_CHANGED,
-                    'category' => LogAction::SITE_SETTINGS_CHANGED->category(),
-                    'severity' => LogAction::SITE_SETTINGS_CHANGED->defaultSeverity(),
-                    'ip_address' => $request->ip(),
-                    'user_agent' => substr($request->userAgent() ?? '', 0, 500),
-                    'device_fingerprint' => hash('sha256', $request->userAgent() . $request->ip()),
-                    'url' => substr($request->fullUrl(), 0, 500),
-                    'method' => 'PUT',
-                    'payload' => ['fields' => $changedSite],
-                    'description' => "تغییر تنظیمات سایت توسط {$user->name}",
-                    'created_at' => now(),
-                ]);
+                AuditLogService::log(
+                    LogAction::SITE_SETTINGS_CHANGED,
+                    $user->id,
+                    ['fields' => $changedSite],
+                    severity: LogSeverity::HIGH
+                );
             }
 
             // ═══════════════════════════════════════════════
             // Payment Settings
             // ═══════════════════════════════════════════════
             if (!empty($changedPayment)) {
-                AuditLog::create([
-                    'user_id' => $user->id,
-                    'action' => LogAction::PAYMENT_SETTINGS_CHANGED,
-                    'category' => LogAction::PAYMENT_SETTINGS_CHANGED->category(),
-                    'severity' => LogAction::PAYMENT_SETTINGS_CHANGED->defaultSeverity(),
-                    'ip_address' => $request->ip(),
-                    'user_agent' => substr($request->userAgent() ?? '', 0, 500),
-                    'device_fingerprint' => hash('sha256', $request->userAgent() . $request->ip()),
-                    'url' => substr($request->fullUrl(), 0, 500),
-                    'method' => 'PUT',
-                    'payload' => ['fields' => $changedPayment],
-                    'description' => "تغییر تنظیمات پرداخت توسط {$user->name}",
-                    'created_at' => now(),
-                ]);
+                AuditLogService::log(
+                    LogAction::PAYMENT_SETTINGS_CHANGED,
+                    $user->id,
+                    ['fields' => $changedPayment],
+                    severity: LogSeverity::CRITICAL
+                );
             }
 
             // ═══════════════════════════════════════════════
             // SMTP Settings
             // ═══════════════════════════════════════════════
             if (!empty($changedSmtp)) {
-                AuditLog::create([
-                    'user_id' => $user->id,
-                    'action' => LogAction::SMTP_SETTINGS_CHANGED,
-                    'category' => LogAction::SMTP_SETTINGS_CHANGED->category(),
-                    'severity' => LogAction::SMTP_SETTINGS_CHANGED->defaultSeverity(),
-                    'ip_address' => $request->ip(),
-                    'user_agent' => substr($request->userAgent() ?? '', 0, 500),
-                    'device_fingerprint' => hash('sha256', $request->userAgent() . $request->ip()),
-                    'url' => substr($request->fullUrl(), 0, 500),
-                    'method' => 'PUT',
-                    'payload' => ['fields' => $changedSmtp],
-                    'description' => "تغییر تنظیمات SMTP توسط {$user->name}",
-                    'created_at' => now(),
-                ]);
+                AuditLogService::log(
+                    LogAction::SMTP_SETTINGS_CHANGED,
+                    $user->id,
+                    ['fields' => $changedSmtp],
+                    severity: LogSeverity::CRITICAL
+                );
             }
 
         } catch (\Throwable $e) {

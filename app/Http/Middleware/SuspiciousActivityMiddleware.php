@@ -13,10 +13,59 @@ use Symfony\Component\HttpFoundation\Response;
 
 class SuspiciousActivityMiddleware
 {
+    private const SENSITIVE_PATHS = [
+        '.env', '.git', '.htaccess', '.htpasswd', 'config.php', 'wp-config.php',
+        'phpmyadmin', 'adminer', 'myadmin', 'pma', 'phpinfo', 'info.php',
+        'shell.php', 'cmd.php', 'eval.php', 'upload.php', 'backup.sql',
+        '.git/config', '.git/HEAD', '.svn', '.DS_Store', 'web.config',
+        'composer.lock', 'package.json', 'docker-compose.yml', 'Dockerfile',
+        'server-status', 'server-info', 'actuator', 'api/docs', 'swagger',
+    ];
+
+    private const SUSPICIOUS_PATTERNS = [
+        '../', '..\\', '%2e%2e', '%252e', 'etc/passwd', 'etc/shadow',
+        'windows/system32', 'cmd.exe', 'powershell.exe', 'bash -c',
+        'eval(', 'exec(', 'system(', 'passthru(', 'shell_exec(',
+        '<script', 'javascript:', 'onerror=', 'onload=',
+        'union select', 'union all select', 'into outfile', 'load_file',
+        'information_schema', 'sleep(', 'benchmark(', 'pg_sleep',
+    ];
     public function handle(Request $request, Closure $next): Response
     {
         $ip = $request->ip();
         $user = auth()->user();
+
+        // ═══════════════════════════════════════════════
+        // ۰. چک IP مسدود شده
+        // ═══════════════════════════════════════════════
+        if (AuditLogService::isIpBlocked($ip)) {
+            AuditLogService::log(
+                LogAction::ABNORMAL_HTTP_REQUESTS,
+                $user?->id,
+                ['url' => $request->fullUrl(), 'reason' => 'blocked_ip_activity'],
+                severity: LogSeverity::CRITICAL
+            );
+
+            SecurityAlertService::checkBlockedIpActivity(
+                $ip,
+                $user?->id,
+                $request->fullUrl()
+            );
+
+            return response('Access Denied', 403);
+        }
+
+        // ═══════════════════════════════════════════════
+        // ۰.۱ چک URLهای حساس
+        // ═══════════════════════════════════════════════
+        $this->checkSensitiveAccess($request, $ip, $user?->id);
+
+        // ═══════════════════════════════════════════════
+        // ۰.۲ چک URLهای مشکوک
+        // ═══════════════════════════════════════════════
+        $this->checkSuspiciousUrl($request, $ip, $user?->id);
+
+        // ۱. شناسایی تلاش دسترسی به /admin توسط کاربر عادی
 
         // ۱. شناسایی تلاش دسترسی به /admin توسط کاربر عادی
         if ($request->is('admin/*') && $user && !$user->isAdmin()) {
@@ -108,6 +157,13 @@ class SuspiciousActivityMiddleware
                 $ip,
                 $userId,
                 ['endpoint' => $endpoint, 'hits' => $hits]
+            );
+
+            // عبور از Rate Limit
+            SecurityAlertService::checkRateLimitBypass(
+                $ip,
+                $userId,
+                $endpoint
             );
 
             AuditLogService::blockIp($ip, "100+ requests to {$endpoint} in 1 minute", until: now()->addMinutes(30));
@@ -213,4 +269,52 @@ class SuspiciousActivityMiddleware
             );
         }
     }
+    private function checkSensitiveAccess(Request $request, string $ip, ?int $userId): void
+    {
+        $path = strtolower($request->path());
+        
+        foreach (self::SENSITIVE_PATHS as $sensitive) {
+            if (str_contains($path, $sensitive)) {
+                AuditLogService::log(
+                    LogAction::ABNORMAL_HTTP_REQUESTS,
+                    $userId,
+                    ['url' => $request->fullUrl(), 'matched_pattern' => $sensitive],
+                    severity: LogSeverity::CRITICAL
+                );
+
+                SecurityAlertService::checkSensitiveAccess(
+                    $ip,
+                    $userId,
+                    $request->fullUrl(),
+                    'file'
+                );
+                break;
+            }
+        }
+    }
+
+    private function checkSuspiciousUrl(Request $request, string $ip, ?int $userId): void
+    {
+        $url = strtolower($request->fullUrl());
+        
+        foreach (self::SUSPICIOUS_PATTERNS as $pattern) {
+            if (str_contains($url, $pattern)) {
+                AuditLogService::log(
+                    LogAction::ABNORMAL_HTTP_REQUESTS,
+                    $userId,
+                    ['url' => $request->fullUrl(), 'matched_pattern' => $pattern],
+                    severity: LogSeverity::HIGH
+                );
+
+                SecurityAlertService::checkSensitiveAccess(
+                    $ip,
+                    $userId,
+                    $request->fullUrl(),
+                    'url'
+                );
+                break;
+            }
+        }
+    }
+
 }

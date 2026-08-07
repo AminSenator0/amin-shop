@@ -17,12 +17,18 @@ class SecurityAlertController extends Controller
             ->when($request->status === 'unresolved', fn($q) => $q->where('is_resolved', false))
             ->paginate(30);
 
+        // پاک کردن cache هشدارها وقتی صفحه alerts باز می‌شه
+        \Illuminate\Support\Facades\Cache::forget('security_alerts_unresolved');
+        \Illuminate\Support\Facades\Cache::forget('security_alerts_critical');
+
         return view('admin.audit-logs.alerts', compact('alerts'));
     }
 
     public function resolve(SecurityAlert $alert)
     {
         $alert->markResolved(auth()->id());
+        \Illuminate\Support\Facades\Cache::forget('security_alerts_unresolved');
+        \Illuminate\Support\Facades\Cache::forget('security_alerts_critical');
         return back()->with('success', 'هشدار برطرف شد.');
     }
 }

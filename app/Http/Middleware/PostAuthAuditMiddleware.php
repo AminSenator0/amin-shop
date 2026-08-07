@@ -5,6 +5,8 @@ namespace App\Http\Middleware;
 use App\Enums\LogAction;
 use App\Enums\LogSeverity;
 use App\Models\AuditLog;
+use App\Services\AuditLogService;
+use App\Services\SecurityAlertService;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -27,23 +29,26 @@ class PostAuthAuditMiddleware
                 // ═══════════════════════════════════════════════
                 // ۱. Log Login Success
                 // ═══════════════════════════════════════════════
-                AuditLog::create([
-                    'user_id' => $user->id,
-                    'action' => $action,
-                    'category' => $action->category(),
-                    'severity' => $action->defaultSeverity(),
-                    'ip_address' => $request->ip(),
-                    'user_agent' => substr($request->userAgent() ?? '', 0, 500),
-                    'device_fingerprint' => hash('sha256', $request->userAgent() . $request->ip()),
-                    'url' => substr($request->fullUrl(), 0, 500),
-                    'method' => 'POST',
-                    'payload' => ['email' => $loginData['email'] ?? $user->email],
-                    'description' => "ورود موفق از IP: " . $request->ip(),
-                    'created_at' => now(),
-                ]);
+                AuditLogService::log(
+                    $action,
+                    $user->id,
+                    ['email' => $loginData['email'] ?? $user->email],
+                    severity: $action->defaultSeverity()
+                );
 
                 // ═══════════════════════════════════════════════
-                // ۲. Check New Device/IP
+                // ۲. Correlation: ورود موفق ادمین بعد از تلاش ناموفق
+                // ═══════════════════════════════════════════════
+                if ($isAdmin) {
+                    SecurityAlertService::checkAdminLoginAfterFailures(
+                        $user->id,
+                        $request->ip(),
+                        $user->name
+                    );
+                }
+
+                // ═══════════════════════════════════════════════
+                // ۳. Check New Device/IP
                 // ═══════════════════════════════════════════════
                 $this->checkNewDevice($user, $request);
 
@@ -66,24 +71,17 @@ class PostAuthAuditMiddleware
 
             if (!Cache::has($cacheKey)) {
                 // اولین بار از این IP/دستگاه → لاگ CRITICAL
-                AuditLog::create([
-                    'user_id' => $user->id,
-                    'action' => LogAction::NEW_DEVICE_OR_IP,
-                    'category' => LogAction::NEW_DEVICE_OR_IP->category(),
-                    'severity' => LogSeverity::HIGH,
-                    'ip_address' => $request->ip(),
-                    'user_agent' => substr($request->userAgent() ?? '', 0, 500),
-                    'device_fingerprint' => $fingerprint,
-                    'url' => substr($request->fullUrl(), 0, 500),
-                    'method' => 'POST',
-                    'payload' => [
+                // اولین بار از این IP/دستگاه → لاگ CRITICAL
+                AuditLogService::log(
+                    LogAction::NEW_DEVICE_OR_IP,
+                    $user->id,
+                    [
                         'fingerprint' => $fingerprint,
                         'ip' => $request->ip(),
                         'user_agent' => $request->userAgent(),
                     ],
-                    'description' => "ورود از IP/دستگاه جدید: " . $request->ip(),
-                    'created_at' => now(),
-                ]);
+                    severity: LogSeverity::CRITICAL
+                );
 
                 // ذخیره برای ۳۰ روز
                 Cache::put($cacheKey, true, now()->addDays(30));

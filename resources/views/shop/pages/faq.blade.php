@@ -1,6 +1,42 @@
 @extends('layouts.shop')
 
-@section('title', 'سوالات متداول — '.$store['name'])
+@section('title', 'سوالات متداول | ' . $store['name'])
+
+@section('meta_description', 'پاسخ به پرسش‌های رایج درباره خرید، ارسال، مرجوعی و پرداخت در ' . $store['name'])
+
+@section('canonical', route('pages.faq'))
+
+@section('open_graph')
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="سوالات متداول | {{ $store['name'] }}">
+    <meta property="og:description" content="پاسخ به پرسش‌های رایج خرید از {{ $store['name'] }}">
+    <meta property="og:url" content="{{ route('pages.faq') }}">
+@endsection
+
+@section('twitter_card')
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="سوالات متداول | {{ $store['name'] }}">
+    <meta name="twitter:description" content="پاسخ به پرسش‌های رایج خرید از {{ $store['name'] }}">
+@endsection
+
+@push('head')
+<script type="application/ld+json">
+{!! json_encode([
+    '@context' => 'https://schema.org',
+    '@type' => 'FAQPage',
+    'name' => 'سوالات متداول ' . $store['name'],
+    'url' => route('pages.faq'),
+    'mainEntity' => $faqs->map(fn($faq) => [
+        '@type' => 'Question',
+        'name' => $faq->question,
+        'acceptedAnswer' => [
+            '@type' => 'Answer',
+            'text' => strip_tags($faq->answer),
+        ],
+    ])->values()->toArray(),
+], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) !!}
+</script>
+@endpush
 
 @section('content')
 <div class="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">

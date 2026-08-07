@@ -26,7 +26,45 @@
             </a>
         </div>
     </div>
-
+    <!-- Summary Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center gap-3">
+            <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-rose-50 text-rose-600">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500 font-medium">CRITICAL</p>
+                <p class="text-lg font-bold text-slate-800">{{ $alerts->where('is_resolved', false)->where('severity.value', 'critical')->count() }}</p>
+            </div>
+        </div>
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center gap-3">
+            <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-50 text-orange-600">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500 font-medium">HIGH</p>
+                <p class="text-lg font-bold text-slate-800">{{ $alerts->where('is_resolved', false)->where('severity.value', 'high')->count() }}</p>
+            </div>
+        </div>
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center gap-3">
+            <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500 font-medium">WARNING</p>
+                <p class="text-lg font-bold text-slate-800">{{ $alerts->where('is_resolved', false)->where('severity.value', 'warning')->count() }}</p>
+            </div>
+        </div>
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center gap-3">
+            <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500 font-medium">کل فعالیت ها</p>
+                <p class="text-lg font-bold text-slate-800">{{ $alerts->where('is_resolved', false)->count() }}</p>
+            </div>
+        </div>
+    </div>
     <!-- Filter Panel -->
     <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mb-6">
         <form method="GET" class="flex flex-wrap items-end gap-4">
@@ -70,6 +108,7 @@
                         <th class="text-right px-4 py-3 font-semibold text-xs w-24">Severity</th>
                         <th class="text-right px-4 py-3 font-semibold text-xs w-36">نوع</th>
                         <th class="text-right px-4 py-3 font-semibold text-xs">پیام</th>
+                        <th class="text-right px-4 py-3 font-semibold text-xs w-20">جزئیات</th>
                         <th class="text-right px-4 py-3 font-semibold text-xs w-36">IP</th>
                         <th class="text-right px-4 py-3 font-semibold text-xs w-32">کاربر</th>
                         <th class="text-right px-4 py-3 font-semibold text-xs w-36">زمان</th>
@@ -108,6 +147,20 @@
                         </td>
                         <td class="px-4 py-3 text-slate-700 text-xs font-medium">{{ $alert->alert_type }}</td>
                         <td class="px-4 py-3 text-slate-700 text-xs max-w-xs truncate" title="{{ $alert->message }}">{{ $alert->message }}</td>
+                        <td class="px-4 py-3 relative">
+                            @if(!empty($alert->evidence) && is_array($alert->evidence))
+                            <button type="button" onclick="this.nextElementSibling.classList.toggle('hidden')" class="inline-flex items-center gap-1 text-slate-500 hover:text-indigo-600 transition">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"/></svg>
+                                <span class="text-xs">نمایش</span>
+                            </button>
+                            <div class="hidden absolute z-10 right-0 mt-2 w-80 bg-white rounded-lg border border-slate-200 shadow-xl p-3 text-xs">
+                                <div class="font-semibold text-slate-700 mb-2 pb-1 border-b border-slate-100">Evidence</div>
+                                <pre class="bg-slate-50 rounded p-2 overflow-auto max-h-48 text-slate-600 font-mono text-[10px] leading-relaxed">{{ json_encode($alert->evidence, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
+                            </div>
+                            @else
+                            <span class="text-slate-300 text-xs">-</span>
+                            @endif
+                        </td>
                         <td class="px-4 py-3">
                             @if($alert->ip_address)
                             <a href="{{ route('admin.audit-logs.ip-detail', $alert->ip_address) }}" class="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-700 font-mono text-xs transition">
@@ -146,7 +199,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="8" class="px-4 py-16 text-center">
+                    <td colspan="9" class="px-4 py-16 text-center">
                             <div class="flex flex-col items-center justify-center text-slate-400">
                                 <div class="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-500 mb-3">
                                     <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
