@@ -26,6 +26,7 @@ class CheckoutRequest extends FormRequest
             'notes' => ['nullable', 'string', 'max:500'],
             // مبلغ‌ها فقط سمت سرور محاسبه می‌شوند — هر فیلد جعلی رد می‌شود
             'total' => ['prohibited'],
+            'payment_method' => ['required', 'in:online,c2c'],
             'subtotal' => ['prohibited'],
             'shipping_cost' => ['prohibited'],
             'discount' => ['prohibited'],

@@ -6120,6 +6120,13 @@
         @apply flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-shop-primary text-white;
     }
 
+    .shop-payment-method-check {
+        display: none;
+    }
+    
+    .shop-payment-method.is-selected .shop-payment-method-check {
+        display: inline-flex !important;
+    }
     .shop-payment-methods-note {
         @apply mt-2 text-[11px] leading-relaxed text-shop-muted;
     }

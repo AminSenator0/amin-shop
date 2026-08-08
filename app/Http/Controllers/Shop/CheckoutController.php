@@ -15,6 +15,7 @@ use App\Services\CartService;
 use App\Services\CouponService;
 use App\Services\OrderService;
 use App\Services\ZarinpalService;
+use App\Services\C2CPaymentService; // ← اضافه شده
 use App\Support\StoreSettings;
 use Illuminate\Support\Facades\DB;
 
@@ -25,12 +26,13 @@ class CheckoutController extends Controller
         private CouponService $coupons,
         private ZarinpalService $zarinpal,
         private OrderService $orders,
+        private C2CPaymentService $c2c, // ← اضافه شده
     ) {}
 
     public function index()
     {
         if ($this->cart->isEmpty()) {
-            return redirect()->route('user.cart.index')->with('error', 'سبد خرید شما خالی است.');
+            return redirect()->route('cart.index')->with('error', 'سبد خرید شما خالی است.');
         }
 
         $items = $this->cart->items();
@@ -48,7 +50,7 @@ class CheckoutController extends Controller
     public function store(CheckoutRequest $request)
     {
         if ($this->cart->isEmpty()) {
-            return redirect()->route('user.cart.index')->with('error', 'سبد خرید شما خالی است.');
+            return redirect()->route('cart.index')->with('error', 'سبد خرید شما خالی است.');
         }
 
         $validated = $request->validated();
@@ -93,7 +95,7 @@ class CheckoutController extends Controller
                         'quantity' => $item['quantity'],
                         'size' => $item['size'] ?? null,
                         'color' => $item['color'] ?? null,
-                        'custom_fields' => $item['custom_fields'] ?? [], // ← اضافه شده
+                        'custom_fields' => $item['custom_fields'] ?? [],
                         'line_total' => $lineTotal,
                     ];
                 }
@@ -132,6 +134,7 @@ class CheckoutController extends Controller
                     'order_number' => Order::generateOrderNumber(),
                     'status' => OrderStatus::Pending,
                     'payment_status' => PaymentStatus::Pending,
+                    'payment_method' => $validated['payment_method'], // ← اضافه شده
                     'shipping_method_id' => $shippingMethod->id,
                     'coupon_id' => $coupon?->id,
                     'coupon_code' => $coupon?->code,
@@ -162,7 +165,7 @@ class CheckoutController extends Controller
                         'product_name' => $product->name,
                         'product_sku' => $product->sku,
                         'options' => $options !== [] ? $options : null,
-                        'custom_fields' => $line['custom_fields'] !== [] ? $line['custom_fields'] : null, // ← اضافه شده
+                        'custom_fields' => $line['custom_fields'] !== [] ? $line['custom_fields'] : null,
                         'price' => $product->price,
                         'quantity' => $line['quantity'],
                         'total' => $line['line_total'],
@@ -187,6 +190,11 @@ class CheckoutController extends Controller
 
         $this->orders->sendConfirmationEmail($order);
 
+        // ← تغییر: ریدایرکت بر اساس روش پرداخت
+        if ($order->payment_method === 'c2c') {
+            return redirect()->route('c2c.show', $order)->with('success', 'سفارش ثبت شد. لطفاً پرداخت کارت به کارت را انجام دهید.');
+        }
+
         return redirect()->route('checkout.payment', $order)->with('success', 'سفارش ثبت شد. لطفاً پرداخت را انجام دهید.');
     }
 
@@ -200,6 +208,11 @@ class CheckoutController extends Controller
             return redirect()->route('user.orders.show', $order);
         }
 
+        // ← اضافه: اگر روش کارت به کارت بود، به صفحه C2C هدایت کن
+        if ($order->payment_method === 'c2c') {
+            return redirect()->route('c2c.show', $order);
+        }
+
         if (! $order->canBePaidOnline()) {
             return redirect()
                 ->route('user.orders.show', $order)
@@ -209,7 +222,7 @@ class CheckoutController extends Controller
         if (! $this->zarinpal->isConfigured()) {
             return redirect()
                 ->route('user.orders.show', $order)
-                ->with('error', 'درگاه زرین‌پال پیکربندی نشده است. مرچنت‌کد واقعی را وارد کنید یا حالت تست (Sandbox) را فعال کنید.');
+                ->with('error', 'درگاه زرین‌پال پیکربندی نشده است.');
         }
 
         try {

@@ -21,6 +21,7 @@ class Order extends Model
         'tracking_code',
         'payment_authority',
         'shipping_method_id',
+        'payment_method',
         'coupon_id',
         'coupon_code',
         'subtotal',
@@ -42,6 +43,7 @@ class Order extends Model
             'status' => OrderStatus::class,
             'payment_status' => PaymentStatus::class,
             'shipping_address' => 'array',
+            'payment_method' => 'string',
             'paid_at' => 'datetime',
             'shipped_at' => 'datetime',
             'delivered_at' => 'datetime',
@@ -77,6 +79,11 @@ class Order extends Model
     public function items(): HasMany
     {
         return $this->hasMany(OrderItem::class);
+    }
+
+    public function c2cPayment(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(C2CPayment::class);
     }
 
     public function returns(): HasMany

@@ -50,6 +50,8 @@ use App\Http\Controllers\User\OrderController as UserOrderController;
 use App\Http\Controllers\User\ReturnController as UserReturnController;
 use App\Http\Controllers\User\ReviewController as UserReviewController;
 use App\Http\Controllers\User\WishlistController as UserWishlistController;
+use App\Http\Controllers\Payment\C2CPaymentController;
+
 use App\Support\StoreSettings;
 use Illuminate\Support\Facades\Route;
 
@@ -145,6 +147,18 @@ Route::prefix('admin')->name('admin.')->middleware('guest')->group(function () {
 
    
 
+Route::middleware(['auth'])->group(function () {
+    Route::get('/orders/{order}/pay/c2c', [C2CPaymentController::class, 'show'])
+        ->name('c2c.show');
+    
+    Route::post('/orders/{order}/pay/c2c/check', [C2CPaymentController::class, 'checkStatus'])
+        ->name('c2c.check');
+    
+    Route::post('/orders/{order}/pay/c2c/receipt', [C2CPaymentController::class, 'uploadReceipt'])
+        ->name('c2c.receipt');
+});
+
+
 // پنل مدیریت
 Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(function () {
     Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
@@ -165,6 +179,9 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::patch('orders/{order}/status', [AdminOrderController::class, 'updateStatus'])->name('orders.status');
     Route::patch('orders/{order}/tracking', [AdminOrderController::class, 'updateTracking'])->name('orders.tracking');
     Route::patch('orders/{order}/payment-status', [AdminOrderController::class, 'updatePaymentStatus'])->name('orders.payment-status');
+    Route::get('c2c-payments', [\App\Http\Controllers\Admin\C2CPaymentController::class, 'index'])->name('c2c.index');
+Route::post('c2c-payments/{payment}/verify', [\App\Http\Controllers\Admin\C2CPaymentController::class, 'verify'])->name('c2c.verify');
+Route::post('c2c-payments/{payment}/reject', [\App\Http\Controllers\Admin\C2CPaymentController::class, 'reject'])->name('c2c.reject');
     Route::post('orders/{order}/cancel', [AdminOrderController::class, 'cancel'])->name('orders.cancel');
     Route::patch('orders/{order}/internal-notes', [AdminOrderController::class, 'updateInternalNotes'])->name('orders.internal-notes');
     Route::resource('brands', AdminBrandController::class)->except(['show']);
