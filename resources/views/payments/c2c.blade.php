@@ -51,6 +51,196 @@
         .c2c-container { margin: 15px; padding: 25px 20px; }
         .c2c-price-amount { font-size: 34px; }
     }
+    /* ======================================================
+   🚀 بهبودهای UI/UX مدرن (بدون تغییر منطق)
+   ====================================================== */
+
+/* ---------- کارت‌های بانکی: انیمیشن Shine + هاور ---------- */
+.c2c-card {
+    transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), 
+                box-shadow 0.35s ease;
+    will-change: transform;
+    position: relative;
+    overflow: hidden;
+    border-radius: 20px; /* گردتر */
+}
+
+.c2c-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 50%;
+    height: 100%;
+    background: linear-gradient(to right, 
+                rgba(255,255,255,0) 0%, 
+                rgba(255,255,255,0.35) 50%, 
+                rgba(255,255,255,0) 100%);
+    transform: skewX(-25deg);
+    animation: shine 5s infinite ease-in-out;
+    pointer-events: none;
+    z-index: 2;
+}
+
+@keyframes shine {
+    0%   { left: -100%; }
+    20%  { left: 200%; }
+    100% { left: 200%; }
+}
+
+.c2c-card:hover {
+    transform: translateY(-6px) scale(1.01);
+    box-shadow: 0 20px 40px -10px rgba(0,0,0,0.15);
+}
+
+/* ---------- تایمر: پالس قوی‌تر با مقیاس ---------- */
+.c2c-timer svg {
+    animation: pulse-strong 2s infinite;
+}
+
+@keyframes pulse-strong {
+    0%, 100% { 
+        opacity: 1; 
+        transform: scale(1); 
+    }
+    50% { 
+        opacity: 0.4; 
+        transform: scale(1.25); 
+    }
+}
+
+/* ---------- آیکون هشدار: نرم‌باز (Soft-Bounce) ---------- */
+.c2c-alert > span:first-child {
+    display: inline-block;
+    animation: soft-bounce 2.8s infinite;
+}
+
+@keyframes soft-bounce {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-4px); }
+}
+
+/* ---------- دکمه‌های کپی: هاور با مقیاس ---------- */
+.c2c-copy-btn,
+.c2c-card-copy {
+    transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    will-change: transform;
+}
+
+.c2c-copy-btn:hover,
+.c2c-card-copy:hover {
+    transform: scale(1.08);
+    background: #1e293b;
+    color: #fff;
+}
+
+/* ---------- دکمه اصلی (بررسی تراکنش): هاور و کلیک ---------- */
+.c2c-btn-main {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: transform, box-shadow;
+}
+
+.c2c-btn-main:hover:not(:disabled) {
+    transform: translateY(-3px);
+    box-shadow: 0 15px 30px -8px rgba(15, 23, 42, 0.25);
+}
+
+.c2c-btn-main:active:not(:disabled) {
+    transform: scale(0.97);
+}
+
+/* ---------- جعبه مبلغ: انیمیشن ملایم در هاور ---------- */
+.c2c-price-box {
+    transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.c2c-price-box:hover {
+    border-color: #0f172a;
+    box-shadow: 0 10px 25px -10px rgba(15, 23, 42, 0.08);
+}
+
+/* ---------- کارت‌ها در موبایل: بهبود فاصله و اندازه ---------- */
+@media (max-width: 768px) {
+    .c2c-card {
+        border-radius: 16px;
+        padding: 18px;
+    }
+
+    .c2c-card-number {
+        font-size: 17px;
+        letter-spacing: 1.5px;
+        text-align: center;
+        margin-bottom: 14px;
+    }
+
+    .c2c-card-header {
+        font-size: 13px;
+    }
+
+    .c2c-card-name {
+        font-size: 12px;
+    }
+
+    .c2c-card-copy {
+        font-size: 11px;
+        padding: 5px 10px;
+    }
+
+    /* دکمه اصلی در موبایل */
+    .c2c-btn-main {
+        font-size: 15px;
+        padding: 16px;
+        border-radius: 14px;
+    }
+
+    /* جعبه مبلغ */
+    .c2c-price-amount {
+        font-size: 32px;
+    }
+
+    /* کپی دکمه */
+    .c2c-copy-btn {
+        padding: 8px 14px;
+        font-size: 12px;
+    }
+
+    /* تایمر */
+    .c2c-timer {
+        font-size: 13px;
+        padding: 6px 16px;
+    }
+
+    #countdown {
+        font-size: 16px;
+    }
+}
+
+/* ---------- بهبود کلی سایه و گردی ---------- */
+.c2c-container {
+    border-radius: 32px;
+    box-shadow: 0 30px 60px -15px rgba(0,0,0,0.06), 
+                0 0 0 1px rgba(0,0,0,0.02);
+}
+
+/* ---------- انیمیشن ورود ملایم برای کل صفحه ---------- */
+.c2c-container {
+    animation: fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes fade-up {
+    0% { opacity: 0; transform: translateY(20px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------- دکمه بستن مودال: چرخش در هاور ---------- */
+.c2c-modal-close {
+    transition: transform 0.2s, background 0.2s;
+}
+.c2c-modal-close:hover {
+    transform: rotate(90deg);
+    background: #fee2e2;
+    color: #ef4444;
+}
 </style>
 @endpush
 
@@ -73,6 +263,9 @@
         <div class="c2c-summary-row">
             <span>مبلغ سفارش</span>
             <strong>{{ number_format($order->total) }} تومان</strong>
+            <div style="color: #10b981; font-size: 13px; margin-bottom: 8px;">
+            تخفیف کارت به کارت: {{ number_format($order->c2c_discount) }} تومان
+        </div>
         </div>
     </div>
 
@@ -91,7 +284,7 @@
                 کپی
             </button>
         </div>
-        <div class="c2c-toman">معادل {{ number_format($order->total) }} تومان</div>
+        <div class="c2c-toman">معادل {{ number_format($order->payable > 0 ? $order->payable : $order->total) }} تومان</div>
     </div>
 
     <div class="c2c-cards">
@@ -167,13 +360,53 @@
     updateTimer();
 
     function copyToClipboard(text, btn) {
-        navigator.clipboard.writeText(text).then(() => {
-            const original = btn.innerHTML;
-            btn.innerHTML = '✔ کپی شد';
-            btn.style.background = '#10b981';
-            setTimeout(() => { btn.innerHTML = original; btn.style.background = ''; }, 2000);
-        });
+    // روش مدرن (اگر در دسترس باشد)
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text)
+            .then(() => showCopiedFeedback(btn))
+            .catch(() => fallbackCopy(text, btn));
+    } else {
+        fallbackCopy(text, btn);
     }
+}
+
+function fallbackCopy(text, btn) {
+    // ایجاد یک textarea مخفی برای کپی
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    textarea.style.left = '-9999px';
+    textarea.style.top = '-9999px';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+
+    try {
+        const successful = document.execCommand('copy');
+        if (successful) {
+            showCopiedFeedback(btn);
+        } else {
+            alert('کپی نشد. لطفاً دستی کپی کنید.');
+        }
+    } catch (err) {
+        alert('کپی نشد. لطفاً دستی کپی کنید.');
+    }
+
+    document.body.removeChild(textarea);
+}
+
+function showCopiedFeedback(btn) {
+    const original = btn.innerHTML;
+    btn.innerHTML = '✔ کپی شد';
+    btn.style.background = '#10b981';
+    btn.style.color = '#fff';
+    setTimeout(() => {
+        btn.innerHTML = original;
+        btn.style.background = '';
+        btn.style.color = '';
+    }, 2000);
+}
 
     // اگر صفحه روی checking بود (ریفresh کرده کاربر)، polling را ادامه بده
     if (currentCheckId) {
@@ -192,48 +425,83 @@
     }
 
     function startChecking() {
-        const btn = document.getElementById('verify-btn');
-        const spinner = document.getElementById('spinner');
-        const text = document.getElementById('btn-text');
-        const status = document.getElementById('status-msg');
+    const btn = document.getElementById('verify-btn');
+    const spinner = document.getElementById('spinner');
+    const text = document.getElementById('btn-text');
+    const status = document.getElementById('status-msg');
 
-        btn.disabled = true;
-        spinner.style.display = 'block';
-        text.innerText = 'در حال ارسال درخواست...';
-        status.style.display = 'block';
-        status.innerText = 'در حال ارسال به گوشی فروشنده...';
+    btn.disabled = true;
+    spinner.style.display = 'block';
+    text.innerText = 'در حال ارسال درخواست...';
+    status.style.display = 'block';
+    status.innerText = 'در حال بررسی...';
 
-        fetch('{{ route("c2c.request-check", $c2c) }}', {
-            method: 'POST',
+    fetch('{{ route("c2c.request-check", $c2c) }}', {
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(r => {
+        if (!r.ok) throw r;
+        return r.json();
+    })
+    .then(data => {
+        text.innerText = 'در حال بررسی...';
+        status.innerText = 'در حال تطابق اطلاعات واریز...';
+        startPolling(data.check_id);
+    })
+    .catch(err => {
+        btn.disabled = false;
+        spinner.style.display = 'none';
+        text.innerText = 'من پرداخت کردم (بررسی تراکنش)';
+        status.innerText = 'خطا در ارسال درخواست. دوباره تلاش کنید.';
+        console.error(err);
+    });
+}
+
+function startPolling(checkId) {
+    if (window.pollInterval) clearInterval(window.pollInterval);
+    
+    const status = document.getElementById('status-msg');
+    
+    window.pollInterval = setInterval(() => {
+        fetch('{{ url("/c2c/check-status") }}/' + checkId, {
+            method: 'GET',
             headers: {
                 'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
+                'Accept': 'application/json'
             }
         })
-        .then(r => {
-            if (!r.ok) throw r;
-            return r.json();
-        })
+        .then(r => r.json())
         .then(data => {
-            currentCheckId = data.check_id;
-            text.innerText = 'در حال بررسی...';
-            status.innerText = 'در حال بررسی رسید بانکی...';
-            startPolling(currentCheckId);
+            if (data.status === 'checking') {
+                status.innerText = 'در حال تطابق اطلاعات واریز...';
+            } else if (data.status === 'pending') {
+                status.innerText = 'در صف انتظار...';
+            } else if (data.status === 'found') {
+                clearInterval(window.pollInterval);
+                status.innerText = '✅ پرداخت تأیید شد! در حال انتقال...';
+                status.style.color = '#10b981';
+                setTimeout(() => {
+                    window.location.href = '{{ route("user.orders.show", $order) }}';
+                }, 1500);
+            } else if (data.status === 'not_found') {
+                clearInterval(window.pollInterval);
+                document.getElementById('verify-btn').disabled = false;
+                document.getElementById('spinner').style.display = 'none';
+                document.getElementById('btn-text').innerText = 'بررسی مجدد';
+                status.innerText = '❌ تراکنش یافت نشد. مطمئن شوید پرداخت را انجام داده‌اید.';
+                status.style.color = '#e11d48';
+            }
         })
-        .catch(err => {
-            btn.disabled = false;
-            spinner.style.display = 'none';
-            text.innerText = 'من پرداخت کردم (بررسی تراکنش)';
-            
-            let msg = 'خطا در ارسال درخواست. لطفاً دوباره تلاش کنید.';
-            if (err.status === 422) msg = 'این پرداخت قبلاً بررسی شده است.';
-            else if (err.status === 403) msg = 'دسترسی غیرمجاز.';
-            
-            status.innerText = msg;
-            status.style.color = '#e11d48';
+        .catch(() => {
+            status.innerText = 'خطا در دریافت وضعیت...';
         });
-    }
+    }, 3000);
+}
 
     function startPolling(checkId) {
         if (pollInterval) clearInterval(pollInterval);
@@ -259,7 +527,7 @@
             .then(r => r.json())
             .then(data => {
                 if (data.status === 'checking') {
-                    status.innerText = `گوشی فروشنده در حال بررسی SMS... (${attempts}/${MAX_ATTEMPTS})`;
+                    status.innerText = `در حال تطابق اطلاعات واریز... (${attempts}/${MAX_ATTEMPTS})`;
                 } else if (data.status === 'pending') {
                     status.innerText = `در صف انتظار برای بررسی... (${attempts}/${MAX_ATTEMPTS})`;
                 } else if (data.status === 'found') {
@@ -327,37 +595,59 @@
         }
     }
     function submitReceipt() {
-        const file = document.getElementById('receiptFile').files[0];
-        if (!file) { alert('لطفاً یک تصویر انتخاب کنید'); return; }
-
-        const formData = new FormData();
-        formData.append('receipt', file);
-
-        const btn = document.getElementById('submitReceiptBtn');
-        btn.disabled = true;
-        btn.innerText = 'در حال آپلود...';
-
-        fetch('{{ route("c2c.receipt", $order) }}', {
-            method: 'POST',
-            headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
-            body: formData
-        })
-        .then(r => r.json())
-        .then(data => {
-            if (data.success) {
-                closeModal();
-                document.querySelector('.c2c-container').innerHTML = `
-                    <div style="text-align:center; padding:50px 20px;">
-                        <svg width="80" height="80" fill="none" stroke="#10b981" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                        <h2 style="margin-top:20px; line-height:1.6">رسید شما ارسال شد.<br>لطفاً تا بررسی صبوری کنید.</h2>
-                    </div>
-                `;
-            } else {
-                alert(data.message || 'خطا در آپلود');
-                btn.disabled = false;
-                btn.innerText = 'ارسال رسید';
-            }
-        });
+    const fileInput = document.getElementById('receiptFile');
+    const file = fileInput.files[0];
+    
+    if (!file) { 
+        alert('لطفاً یک تصویر انتخاب کنید'); 
+        return; 
     }
+
+    const formData = new FormData();
+    formData.append('receipt', file);
+
+    const btn = document.getElementById('submitReceiptBtn');
+    btn.disabled = true;
+    btn.innerText = 'در حال آپلود...';
+
+    fetch('{{ route("c2c.receipt", $order) }}', {
+        method: 'POST',
+        headers: { 
+            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+            'Accept': 'application/json' // ⬅️ اینو اضافه کن
+        },
+        body: formData
+    })
+    .then(async r => {
+        // اگه response OK نیست (۴۰۰، ۴۲۲، ۵۰۰)، متن ارور رو بخون
+        if (!r.ok) {
+            const text = await r.text();
+            throw new Error(text.substring(0, 200));
+        }
+        return r.json();
+    })
+    .then(data => {
+        if (data.success) {
+            closeModal();
+            document.querySelector('.c2c-container').innerHTML = `
+                <div style="text-align:center; padding:50px 20px;">
+                    <svg width="80" height="80" fill="none" stroke="#10b981" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <h2 style="margin-top:20px; line-height:1.6">رسید شما ارسال شد.<br>لطفاً تا بررسی صبوری کنید.</h2>
+                </div>
+            `;
+        } else {
+            alert(data.message || 'خطا در آپلود');
+            btn.disabled = false;
+            btn.innerText = 'ارسال رسید';
+        }
+    })
+    .catch(err => {
+        console.error('Upload error:', err);
+        alert('خطا در ارسال: ' + err.message);
+        btn.disabled = false;
+        btn.innerText = 'ارسال رسید';
+    });
+}
+    
 </script>
 @endsection

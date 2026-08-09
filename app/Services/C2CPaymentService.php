@@ -17,7 +17,7 @@ class C2CPaymentService
             return $order->c2cPayment;
         }
 
-        $toman = (int) $order->total;        // فرض: total به تومان است
+        $toman = (int) ($order->payable > 0 ? $order->payable : $order->total);
         $rialBase = $toman * 10;             // تبدیل به ریال
         $randomSuffix = random_int(100, 9990); // یک عدد ۳ تا ۴ رقمی برای شناسایی
         

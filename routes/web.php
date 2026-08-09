@@ -53,7 +53,7 @@ use App\Http\Controllers\User\WishlistController as UserWishlistController;
 
 // ===== کنترلرهای کارت به کارت =====
 use App\Http\Controllers\Payment\C2CPaymentController;                           // برای آپلود رسید و پرداخت دستی
-use App\Http\Controllers\Shop\C2CPaymentController as ShopC2CPaymentController; // برای صفحه پرداخت و بررسی خودکار
+use App\Http\Controllers\Shop\C2CPaymentController as ShopC2CPaymentController; // برای درخواست بررسی و وضعیت
 use App\Http\Controllers\Admin\C2CPaymentController as AdminC2CPaymentController; // برای مدیریت در ادمین
 
 use App\Support\StoreSettings;
@@ -115,15 +115,12 @@ Route::middleware('auth')->group(function () {
         ->name('checkout.payment.process');
     Route::post('/products/{product}/reviews', [ReviewController::class, 'store'])->name('products.reviews.store');
 
-    // ===== کارت به کارت (بررسی خودکار - کنترلر Shop) =====
-    Route::get('/c2c/{order}', [ShopC2CPaymentController::class, 'show'])->name('c2c.show');
-    Route::post('/c2c/request-check/{c2cPayment}', [ShopC2CPaymentController::class, 'requestCheck'])->name('c2c.request-check');
-    Route::get('/c2c/check-status/{check}', [ShopC2CPaymentController::class, 'checkStatus'])->name('c2c.check-status');
-
-    // ===== کارت به کارت (آپلود رسید و پرداخت دستی - کنترلر Payment) =====
-    Route::get('/payment/c2c/{order}', [C2CPaymentController::class, 'show'])->name('payment.c2c.show');
-    Route::post('/payment/c2c/check/{order}', [C2CPaymentController::class, 'checkStatus'])->name('payment.c2c.check');
-    Route::post('/payment/c2c/receipt/{order}', [C2CPaymentController::class, 'uploadReceipt'])->name('payment.c2c.receipt');
+    // ========== کارت به کارت (فقط این ۵ خط) ==========
+    Route::get('/c2c/{order}', [\App\Http\Controllers\Payment\C2CPaymentController::class, 'show'])->name('c2c.show');
+    Route::post('/c2c/check/{order}', [\App\Http\Controllers\Payment\C2CPaymentController::class, 'checkStatus'])->name('c2c.check');
+    Route::post('/c2c/receipt/{order}', [\App\Http\Controllers\Payment\C2CPaymentController::class, 'uploadReceipt'])->name('c2c.receipt');
+    Route::post('/c2c/request-check/{c2cPayment}', [\App\Http\Controllers\Shop\C2CPaymentController::class, 'requestCheck'])->name('c2c.request-check');
+    Route::get('/c2c/check-status/{check}', [\App\Http\Controllers\Shop\C2CPaymentController::class, 'checkStatus'])->name('c2c.check-status');
 
     // ===== پنل کاربری =====
     Route::prefix('account')->name('user.')->group(function () {

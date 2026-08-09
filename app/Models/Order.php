@@ -32,6 +32,8 @@ class Order extends Model
         'notes',
         'internal_notes',
         'paid_at',
+        'c2c_discount',
+        'payable',
         'shipped_at',
         'delivered_at',
         'admin_read_at',

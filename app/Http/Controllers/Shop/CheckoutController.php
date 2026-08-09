@@ -128,6 +128,17 @@ class CheckoutController extends Controller
                 $discount = min($discount, $subtotal);
                 $shippingCost = $shippingMethod->calculateCost($subtotal - $discount);
                 $total = max(0, $subtotal - $discount) + $shippingCost;
+               // $total = $cart->items->sum(fn($item) => $item->price * $item->quantity);
+
+                // ⬇️⬇️⬇️ تخفیف کارت به کارت ⬇️⬇️⬇️
+                $c2cDiscount = 0;
+                $payable = $total;
+                
+                if ($validated['payment_method'] === 'c2c') {
+                    $discountPercent = (float) (\App\Support\StoreSettings::get('c2c_discount_percent') ?? 1);
+                    $c2cDiscount = round($total * $discountPercent / 100);
+                    $payable = $total - $c2cDiscount;
+                }
 
                 $order = Order::create([
                     'user_id' => auth()->id(),
@@ -142,6 +153,8 @@ class CheckoutController extends Controller
                     'shipping_cost' => $shippingCost,
                     'discount_amount' => $discount,
                     'total' => $total,
+                    'c2c_discount' => $c2cDiscount,        // ⬅️ اضافه شد
+                    'payable' => $payable,                 // ⬅️ اضافه شد
                     'shipping_address' => $address->toSnapshot(),
                     'notes' => $validated['notes'] ?? null,
                 ]);

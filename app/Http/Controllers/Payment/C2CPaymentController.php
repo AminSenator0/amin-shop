@@ -66,28 +66,50 @@ class C2CPaymentController extends Controller
     /**
      * آپلود رسید دستی توسط کاربر
      */
-    public function uploadReceipt(Request $request, Order $order): JsonResponse
-    {
-        $request->validate([
-            'receipt' => 'required|image|mimes:jpeg,png,jpg|max:2048'
-        ]);
-
-        $c2c = $order->c2cPayment;
-
-        if (!$c2c || !in_array($c2c->status, ['pending', 'expired'])) {
-            return response()->json([
-                'success' => false,
-                'message' => 'وضعیت سفارش نامعتبر است.'
-            ], 400);
-        }
-
-        $path = $request->file('receipt')->store('receipts', 'public');
-
-        $c2c->update([
-            'receipt_path' => $path,
-            'status'       => 'receipt_uploaded'
-        ]);
-
-        return response()->json(['success' => true]);
+/**
+ * آپلود رسید دستی توسط کاربر
+ */
+public function uploadReceipt(Request $request, Order $order): JsonResponse
+{
+    // ۱. بررسی مالکیت سفارش
+    if ($order->user_id !== $request->user()->id) {
+        abort(403, 'شما دسترسی به این سفارش ندارید.');
     }
+
+    // ۲. اعتبارسنجی فایل
+    $request->validate([
+        'receipt' => 'required|image|mimes:jpeg,png,jpg|max:5120' // حداکثر ۵ مگابایت
+    ]);
+
+    // ۳. پیدا کردن پرداخت کارت به کارت
+    $c2c = $order->c2cPayment;
+    if (! $c2c) {
+        return response()->json([
+            'success' => false,
+            'message' => 'پرداخت کارت به کارت برای این سفارش یافت نشد.'
+        ], 404);
+    }
+
+    // ۴. بررسی وضعیت مجاز برای آپلود رسید
+    if (! in_array($c2c->status, ['pending', 'expired'])) {
+        return response()->json([
+            'success' => false,
+            'message' => 'وضعیت پرداخت اجازه آپلود رسید را نمی‌دهد.'
+        ], 400);
+    }
+
+    // ۵. ذخیره فایل
+    $path = $request->file('receipt')->store('c2c-receipts', 'public');
+
+    // ۶. به‌روزرسانی رکورد پرداخت
+    $c2c->update([
+        'receipt_path' => $path,
+        'status'       => 'receipt_uploaded'
+    ]);
+
+    return response()->json([
+        'success' => true,
+        'message' => 'رسید با موفقیت آپلود شد.'
+    ]);
+}
 }
