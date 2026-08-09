@@ -51,6 +51,13 @@ return Application::configure(basePath: dirname(__DIR__))
             return route('user.dashboard');
         });
     })
+
+
+    ->withMiddleware(function (Middleware $middleware) {
+        $middleware->alias([
+            'seller.auth' => \App\Http\Middleware\SellerApiAuth::class,
+        ]);
+    })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->reportable(function (Throwable $e) {
             try {

@@ -135,17 +135,27 @@
     </div>
 </div>
 
+@php
+    $latestCheck = $c2c->checks()->latest()->first();
+    $hasActiveCheck = $latestCheck && in_array($latestCheck->status, ['pending', 'checking']);
+@endphp
+
 <script>
     const orderId = {{ $order->id }};
-    let checkInterval;
-    let timeLeft = {{ max(0, now()->diffInSeconds($c2c->expires_at, false)) }};
-
+    const c2cId = {{ $c2c->id }};
+    let timerInterval;
+    let pollInterval = null;
+    let currentCheckId = {{ $hasActiveCheck ? $latestCheck->id : 'null' }};
+    
+    let timeLeft = Math.floor({{ max(0, now()->diffInSeconds($c2c->expires_at, false)) }});
+    
     function updateTimer() {
         if (timeLeft <= 0) {
             document.getElementById('countdown').innerText = "00:00";
             document.getElementById('verify-btn').disabled = true;
             document.getElementById('btn-text').innerText = "زمان پرداخت به پایان رسید";
-            clearInterval(checkInterval);
+            clearInterval(timerInterval);
+            if (pollInterval) clearInterval(pollInterval);
             return;
         }
         const m = Math.floor(timeLeft / 60).toString().padStart(2, '0');
@@ -153,7 +163,7 @@
         document.getElementById('countdown').innerText = m + ":" + s;
         timeLeft--;
     }
-    setInterval(updateTimer, 1000);
+    timerInterval = setInterval(updateTimer, 1000);
     updateTimer();
 
     function copyToClipboard(text, btn) {
@@ -165,6 +175,22 @@
         });
     }
 
+    // اگر صفحه روی checking بود (ریفresh کرده کاربر)، polling را ادامه بده
+    if (currentCheckId) {
+        const btn = document.getElementById('verify-btn');
+        const spinner = document.getElementById('spinner');
+        const text = document.getElementById('btn-text');
+        const status = document.getElementById('status-msg');
+        
+        btn.disabled = true;
+        spinner.style.display = 'block';
+        text.innerText = 'در حال بررسی...';
+        status.style.display = 'block';
+        status.innerText = 'در حال بررسی رسید بانکی...';
+        
+        startPolling(currentCheckId);
+    }
+
     function startChecking() {
         const btn = document.getElementById('verify-btn');
         const spinner = document.getElementById('spinner');
@@ -173,12 +199,58 @@
 
         btn.disabled = true;
         spinner.style.display = 'block';
-        text.innerText = 'در حال بررسی...';
+        text.innerText = 'در حال ارسال درخواست...';
         status.style.display = 'block';
+        status.innerText = 'در حال ارسال به گوشی فروشنده...';
 
-        checkInterval = setInterval(() => {
-            fetch('{{ route("c2c.check", $order) }}', {
-                method: 'POST',
+        fetch('{{ route("c2c.request-check", $c2c) }}', {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(r => {
+            if (!r.ok) throw r;
+            return r.json();
+        })
+        .then(data => {
+            currentCheckId = data.check_id;
+            text.innerText = 'در حال بررسی...';
+            status.innerText = 'در حال بررسی رسید بانکی...';
+            startPolling(currentCheckId);
+        })
+        .catch(err => {
+            btn.disabled = false;
+            spinner.style.display = 'none';
+            text.innerText = 'من پرداخت کردم (بررسی تراکنش)';
+            
+            let msg = 'خطا در ارسال درخواست. لطفاً دوباره تلاش کنید.';
+            if (err.status === 422) msg = 'این پرداخت قبلاً بررسی شده است.';
+            else if (err.status === 403) msg = 'دسترسی غیرمجاز.';
+            
+            status.innerText = msg;
+            status.style.color = '#e11d48';
+        });
+    }
+
+    function startPolling(checkId) {
+        if (pollInterval) clearInterval(pollInterval);
+        
+        const status = document.getElementById('status-msg');
+        const btn = document.getElementById('verify-btn');
+        const text = document.getElementById('btn-text');
+        const spinner = document.getElementById('spinner');
+        
+        let attempts = 0;
+        const MAX_ATTEMPTS = 10; // 10 بار × ۳ ثانیه = ۳۰ ثانیه
+        
+        pollInterval = setInterval(() => {
+            attempts++;
+            
+            fetch('{{ url("/c2c/check-status") }}/' + checkId, {
+                method: 'GET',
                 headers: {
                     'X-CSRF-TOKEN': '{{ csrf_token() }}',
                     'Accept': 'application/json'
@@ -186,22 +258,67 @@
             })
             .then(r => r.json())
             .then(data => {
-                if (data.verified) {
-                    clearInterval(checkInterval);
-                    text.innerText = '✔ پرداخت تأیید شد!';
-                    btn.style.background = '#10b981';
-                    status.style.color = '#10b981';
-                    status.innerText = 'در حال انتقال...';
-                    setTimeout(() => window.location.href = data.redirect_url, 1500);
-                } else if (data.expired) {
-                    clearInterval(checkInterval);
-                    text.innerText = 'زمان به پایان رسید';
-                    status.innerText = 'لطفاً سفارش جدید ثبت کنید.';
+                if (data.status === 'checking') {
+                    status.innerText = `گوشی فروشنده در حال بررسی SMS... (${attempts}/${MAX_ATTEMPTS})`;
+                } else if (data.status === 'pending') {
+                    status.innerText = `در صف انتظار برای بررسی... (${attempts}/${MAX_ATTEMPTS})`;
+                } else if (data.status === 'found') {
+                    clearInterval(pollInterval);
+                    showSuccess();
+                } else if (data.status === 'not_found') {
+                    clearInterval(pollInterval);
+                    showNotFound();
                 }
+                
+                // اگر به حداکثر تلاش رسیدیم و هنوز نتیجه‌ای نگرفتیم
+                if (attempts >= MAX_ATTEMPTS && !['found', 'not_found'].includes(data.status)) {
+                    clearInterval(pollInterval);
+                    btn.disabled = false;
+                    spinner.style.display = 'none';
+                    text.innerText = 'بررسی مجدد';
+                    status.style.color = '#e11d48';
+                    status.innerText = '⏰ زمان بررسی تمام شد. لطفاً مجدداً تلاش کنید.';
+                }
+            })
+            .catch(() => {
+                status.innerText = 'خطا در دریافت وضعیت...';
             });
-        }, 5000);
+        }, 3000);
     }
 
+    function showSuccess() {
+        const btn = document.getElementById('verify-btn');
+        const spinner = document.getElementById('spinner');
+        const text = document.getElementById('btn-text');
+        const status = document.getElementById('status-msg');
+        
+        spinner.style.display = 'none';
+        text.innerText = '✔ پرداخت تأیید شد!';
+        btn.style.background = '#10b981';
+        status.style.color = '#10b981';
+        status.innerText = 'در حال انتقال به صفحه سفارش...';
+        
+        setTimeout(() => {
+            window.location.href = '{{ route("user.orders.show", $order) }}';
+        }, 1500);
+    }
+
+    function showNotFound() {
+        const btn = document.getElementById('verify-btn');
+        const spinner = document.getElementById('spinner');
+        const text = document.getElementById('btn-text');
+        const status = document.getElementById('status-msg');
+        
+        btn.disabled = false;
+        spinner.style.display = 'none';
+        text.innerText = 'بررسی مجدد';
+        btn.style.background = '';
+        
+        status.style.color = '#e11d48';
+        status.innerText = '❌ تراکنش یافت نشد. مطمئن شوید پرداخت را انجام داده‌اید.';
+    }
+
+    // ---------- Modal & Receipt ----------
     function openModal() { document.getElementById('receiptModal').classList.add('active'); }
     function closeModal() { document.getElementById('receiptModal').classList.remove('active'); }
     function fileSelected(input) {
@@ -209,7 +326,6 @@
             document.getElementById('fileName').innerText = 'فایل: ' + input.files[0].name;
         }
     }
-
     function submitReceipt() {
         const file = document.getElementById('receiptFile').files[0];
         if (!file) { alert('لطفاً یک تصویر انتخاب کنید'); return; }

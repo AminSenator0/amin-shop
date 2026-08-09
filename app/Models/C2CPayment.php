@@ -26,6 +26,12 @@ class C2CPayment extends Model
         return $this->belongsTo(Order::class); // یا نام مدل سفارش شما
     }
 
+// app/Models/C2CPayment.php
+public function checks()
+{
+    return $this->hasMany(\App\Models\C2CCheck::class, 'c2c_payment_id');
+}
+
     public function isExpired(): bool
     {
         return $this->expires_at->isPast();

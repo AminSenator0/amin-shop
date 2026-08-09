@@ -1,6 +1,8 @@
-@props(['sections' => []])
-
-@if($store['homepageStickyNavEnabled'] && count($sections) > 1)
+@props([
+    'sections' => [],
+    'store' => null,
+])
+@if($store && ($store['homepageStickyNavEnabled'] ?? false) && count($sections) > 1)
 <nav
     class="home-sticky-nav"
     aria-label="ناوبری سریع صفحه اصلی"

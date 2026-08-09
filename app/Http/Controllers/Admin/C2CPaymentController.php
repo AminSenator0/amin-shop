@@ -10,11 +10,25 @@ class C2CPaymentController extends Controller
 {
     public function index()
     {
-        $payments = C2CPayment::with(['order.user'])
+        $payments = C2CPayment::with('order.user')
             ->latest()
             ->paginate(20);
-
-        return view('admin.c2c.index', compact('payments'));
+    
+        // آمار از کل جدول، نه از صفحهٔ فعلی
+        $pendingCount   = C2CPayment::where('status', 'pending')->count();
+        $receiptCount   = C2CPayment::where('status', 'receipt_uploaded')->count();
+        $verifiedCount  = C2CPayment::where('status', 'verified')->count();
+        $expiredCount   = C2CPayment::where('status', 'expired')->count();
+        $rejectedCount  = C2CPayment::where('status', 'rejected')->count(); // اگه اضافه کردی
+    
+        return view('admin.c2c.index', compact(
+            'payments',
+            'pendingCount',
+            'receiptCount',
+            'verifiedCount',
+            'expiredCount',
+            'rejectedCount'
+        ));
     }
 
     public function verify(Request $request, C2CPayment $payment)
@@ -39,14 +53,25 @@ class C2CPaymentController extends Controller
 
     public function reject(Request $request, C2CPayment $payment)
     {
+        if (! in_array($payment->status, ['pending', 'receipt_uploaded'])) {
+            return back()->with('error', 'این پرداخت قابل رد نیست.');
+        }
+    
         $request->validate([
             'reason' => 'required|string|max:500',
         ]);
-
+    
         $payment->update([
+            'status' => 'rejected',
             'admin_notes' => $request->input('reason'),
+            'rejected_at' => now(),
         ]);
-
-        return back()->with('success', 'پرداخت رد شد.');
+    
+        $payment->order->update([
+            'payment_status' => \App\Enums\PaymentStatus::Failed,
+            'status' => \App\Enums\OrderStatus::Cancelled,
+        ]);
+    
+        return back()->with('success', 'پرداخت رد و سفارش لغو شد.');
     }
 }

@@ -50,7 +50,11 @@ use App\Http\Controllers\User\OrderController as UserOrderController;
 use App\Http\Controllers\User\ReturnController as UserReturnController;
 use App\Http\Controllers\User\ReviewController as UserReviewController;
 use App\Http\Controllers\User\WishlistController as UserWishlistController;
-use App\Http\Controllers\Payment\C2CPaymentController;
+
+// ===== کنترلرهای کارت به کارت =====
+use App\Http\Controllers\Payment\C2CPaymentController;                           // برای آپلود رسید و پرداخت دستی
+use App\Http\Controllers\Shop\C2CPaymentController as ShopC2CPaymentController; // برای صفحه پرداخت و بررسی خودکار
+use App\Http\Controllers\Admin\C2CPaymentController as AdminC2CPaymentController; // برای مدیریت در ادمین
 
 use App\Support\StoreSettings;
 use Illuminate\Support\Facades\Route;
@@ -61,7 +65,9 @@ Route::get('/favicon.ico', function () {
     return redirect($url, 302, ['Cache-Control' => 'public, max-age=86400']);
 });
 
-// فروشگاه
+// ============================
+// فروشگاه (عمومی)
+// ============================
 Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::get('/search/suggest', [SearchController::class, 'suggest'])->name('search.suggest');
 Route::get('/products', [ProductController::class, 'index'])->name('products.index');
@@ -95,6 +101,9 @@ Route::get('/sitemap.xml', function () {
         ->header('Content-Type', 'application/xml');
 })->name('sitemap');
 
+// ============================
+// فروشگاه (کاربران لاگین‌شده)
+// ============================
 Route::middleware('auth')->group(function () {
     Route::get('/checkout', [CheckoutController::class, 'index'])->name('checkout.index');
     Route::post('/checkout', [CheckoutController::class, 'store'])->name('checkout.store');
@@ -102,10 +111,21 @@ Route::middleware('auth')->group(function () {
     Route::delete('/checkout/coupon', [CouponController::class, 'destroy'])->name('checkout.coupon.destroy');
     Route::get('/checkout/payment/{order}', [CheckoutController::class, 'payment'])->name('checkout.payment');
     Route::post('/checkout/payment/{order}', [CheckoutController::class, 'processPayment'])
-    ->middleware('throttle:payment')
-    ->name('checkout.payment.process');
+        ->middleware('throttle:payment')
+        ->name('checkout.payment.process');
     Route::post('/products/{product}/reviews', [ReviewController::class, 'store'])->name('products.reviews.store');
 
+    // ===== کارت به کارت (بررسی خودکار - کنترلر Shop) =====
+    Route::get('/c2c/{order}', [ShopC2CPaymentController::class, 'show'])->name('c2c.show');
+    Route::post('/c2c/request-check/{c2cPayment}', [ShopC2CPaymentController::class, 'requestCheck'])->name('c2c.request-check');
+    Route::get('/c2c/check-status/{check}', [ShopC2CPaymentController::class, 'checkStatus'])->name('c2c.check-status');
+
+    // ===== کارت به کارت (آپلود رسید و پرداخت دستی - کنترلر Payment) =====
+    Route::get('/payment/c2c/{order}', [C2CPaymentController::class, 'show'])->name('payment.c2c.show');
+    Route::post('/payment/c2c/check/{order}', [C2CPaymentController::class, 'checkStatus'])->name('payment.c2c.check');
+    Route::post('/payment/c2c/receipt/{order}', [C2CPaymentController::class, 'uploadReceipt'])->name('payment.c2c.receipt');
+
+    // ===== پنل کاربری =====
     Route::prefix('account')->name('user.')->group(function () {
         Route::get('/', [UserDashboardController::class, 'index'])->name('dashboard');
         Route::get('/orders', [UserOrderController::class, 'index'])->name('orders.index');
@@ -122,14 +142,14 @@ Route::middleware('auth')->group(function () {
         Route::get('/coupons', [UserCouponController::class, 'index'])->name('coupons.index');
         Route::post('/coupons', [UserCouponController::class, 'store'])->middleware('throttle:10,1')->name('coupons.store');
         Route::post('/coupons/{coupon}/apply', [UserCouponController::class, 'apply'])
-    ->middleware('throttle:coupon')
-    ->name('coupons.apply');
+            ->middleware('throttle:coupon')
+            ->name('coupons.apply');
         Route::delete('/coupons/{coupon}', [UserCouponController::class, 'destroy'])->name('coupons.destroy');
         Route::get('/messages', [UserMessageController::class, 'index'])->name('messages.index');
         Route::get('/messages/new', [UserMessageController::class, 'create'])->name('messages.create');
         Route::post('/messages', [UserMessageController::class, 'store'])
-    ->middleware('throttle:contact')
-    ->name('messages.store');
+            ->middleware('throttle:contact')
+            ->name('messages.store');
         Route::get('/messages/{message}', [UserMessageController::class, 'show'])->name('messages.show');
         Route::post('/messages/{message}/reply', [UserMessageController::class, 'reply'])->name('messages.reply');
     });
@@ -139,27 +159,17 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
-// ورود پنل مدیریت
+// ============================
+// ورود به پنل مدیریت
+// ============================
 Route::prefix('admin')->name('admin.')->middleware('guest')->group(function () {
     Route::get('login', [AdminLoginController::class, 'create'])->name('login');
     Route::post('login', [AdminLoginController::class, 'store']);
 });
 
-   
-
-Route::middleware(['auth'])->group(function () {
-    Route::get('/orders/{order}/pay/c2c', [C2CPaymentController::class, 'show'])
-        ->name('c2c.show');
-    
-    Route::post('/orders/{order}/pay/c2c/check', [C2CPaymentController::class, 'checkStatus'])
-        ->name('c2c.check');
-    
-    Route::post('/orders/{order}/pay/c2c/receipt', [C2CPaymentController::class, 'uploadReceipt'])
-        ->name('c2c.receipt');
-});
-
-
-// پنل مدیریت
+// ============================
+// پنل مدیریت (ادمین)
+// ============================
 Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(function () {
     Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
     Route::get('dashboard/export', [AdminDashboardController::class, 'export'])->name('dashboard.export');
@@ -179,11 +189,14 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::patch('orders/{order}/status', [AdminOrderController::class, 'updateStatus'])->name('orders.status');
     Route::patch('orders/{order}/tracking', [AdminOrderController::class, 'updateTracking'])->name('orders.tracking');
     Route::patch('orders/{order}/payment-status', [AdminOrderController::class, 'updatePaymentStatus'])->name('orders.payment-status');
-    Route::get('c2c-payments', [\App\Http\Controllers\Admin\C2CPaymentController::class, 'index'])->name('c2c.index');
-Route::post('c2c-payments/{payment}/verify', [\App\Http\Controllers\Admin\C2CPaymentController::class, 'verify'])->name('c2c.verify');
-Route::post('c2c-payments/{payment}/reject', [\App\Http\Controllers\Admin\C2CPaymentController::class, 'reject'])->name('c2c.reject');
     Route::post('orders/{order}/cancel', [AdminOrderController::class, 'cancel'])->name('orders.cancel');
     Route::patch('orders/{order}/internal-notes', [AdminOrderController::class, 'updateInternalNotes'])->name('orders.internal-notes');
+
+    // ===== مدیریت پرداخت‌های کارت به کارت (ادمین) =====
+    Route::get('c2c-payments', [AdminC2CPaymentController::class, 'index'])->name('c2c.index');
+    Route::post('c2c-payments/{payment}/verify', [AdminC2CPaymentController::class, 'verify'])->name('c2c.verify');
+    Route::post('c2c-payments/{payment}/reject', [AdminC2CPaymentController::class, 'reject'])->name('c2c.reject');
+
     Route::resource('brands', AdminBrandController::class)->except(['show']);
     Route::get('returns', [AdminReturnController::class, 'index'])->name('returns.index');
     Route::post('orders/{order}/returns', [AdminReturnController::class, 'store'])->name('returns.store');
@@ -219,6 +232,7 @@ Route::post('c2c-payments/{payment}/reject', [\App\Http\Controllers\Admin\C2CPay
     Route::delete('newsletter/{newsletterSubscriber}', [NewsletterSubscriberController::class, 'destroy'])->name('newsletter.destroy');
     Route::get('settings', [StoreSettingsController::class, 'edit'])->name('settings.edit');
     Route::put('settings', [StoreSettingsController::class, 'update'])->name('settings.update');
+
     Route::prefix('audit-logs')->name('audit-logs.')->group(function () {
         Route::get('/', [AuditLogController::class, 'dashboard'])->name('dashboard');
         Route::get('/logs', [AuditLogController::class, 'index'])->name('index');
@@ -227,16 +241,14 @@ Route::post('c2c-payments/{payment}/reject', [\App\Http\Controllers\Admin\C2CPay
         Route::get('/user/{user}/activity', [AuditLogController::class, 'userActivity'])->name('user-activity');
         Route::get('/admin/{admin}/activity', [AuditLogController::class, 'adminActivity'])->name('admin-activity');
         Route::get('{auditLog}/show', [AuditLogController::class, 'show'])->name('show');
-    
+
         Route::get('/alerts', [SecurityAlertController::class, 'index'])->name('alerts');
         Route::patch('/alerts/{alert}/resolve', [SecurityAlertController::class, 'resolve'])->name('alerts.resolve');
-        
+
         Route::get('/blocked-ips', [BlockedIpController::class, 'index'])->name('blocked-ips');
         Route::post('/blocked-ips', [BlockedIpController::class, 'store'])->name('blocked-ips.store');
         Route::delete('/blocked-ips/{blockedIp}', [BlockedIpController::class, 'destroy'])->name('blocked-ips.destroy');
-        
-
-        
     });
 });
+
 require __DIR__.'/auth.php';

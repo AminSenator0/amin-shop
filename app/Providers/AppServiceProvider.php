@@ -226,6 +226,11 @@ class AppServiceProvider extends ServiceProvider
         });
 
 
+        RateLimiter::for('seller-poll', function (Request $request) {
+            // فقط ۱ درخواست در هر ۳ ثانیه از هر IP/دیوایس
+            return Limit::perMinute(20)->by($request->ip());
+        });
+
         // \u0641\u0631\u0645 \u062a\u0645\u0627\u0633/\u067e\u06cc\u0627\u0645: \u06f5 \u067e\u06cc\u0627\u0645 \u062f\u0631 \u0633\u0627\u0639\u062a
         RateLimiter::for('contact', function (Request $request) {
             return Limit::perHour(5)
