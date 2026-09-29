@@ -44,6 +44,12 @@ return [
             'primary' => '#9D174D',
             'accent' => '#EC4899',
         ],
+        'Cream' => [
+            'name' => 'کرم',
+            'description' => 'مدرن و لوکس',
+            'primary' => '#8B6048',
+            'accent' => '#EED8C7',
+        ],
         'ocean' => [
             'name' => 'اقیانوسی',
             'description' => 'آرام و قابل اعتماد',

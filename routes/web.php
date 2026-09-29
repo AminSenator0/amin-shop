@@ -50,7 +50,7 @@ use App\Http\Controllers\User\OrderController as UserOrderController;
 use App\Http\Controllers\User\ReturnController as UserReturnController;
 use App\Http\Controllers\User\ReviewController as UserReviewController;
 use App\Http\Controllers\User\WishlistController as UserWishlistController;
-
+use App\Http\Controllers\Admin\AnalyticsController;
 // ===== کنترلرهای کارت به کارت =====
 use App\Http\Controllers\Payment\C2CPaymentController;                           // برای آپلود رسید و پرداخت دستی
 use App\Http\Controllers\Shop\C2CPaymentController as ShopC2CPaymentController; // برای درخواست بررسی و وضعیت
@@ -189,6 +189,10 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::post('orders/{order}/cancel', [AdminOrderController::class, 'cancel'])->name('orders.cancel');
     Route::patch('orders/{order}/internal-notes', [AdminOrderController::class, 'updateInternalNotes'])->name('orders.internal-notes');
 
+        // ─── آمارها ─────────────────────────────────
+    Route::get('analytics', [AnalyticsController::class, 'visits'])->name('analytics.visits');
+    Route::get('analytics/products', [AnalyticsController::class, 'products'])->name('analytics.products');
+    Route::get('analytics/blog', [AnalyticsController::class, 'blog'])->name('analytics.blog');
     // ===== مدیریت پرداخت‌های کارت به کارت (ادمین) =====
     Route::get('c2c-payments', [AdminC2CPaymentController::class, 'index'])->name('c2c.index');
     Route::post('c2c-payments/{payment}/verify', [AdminC2CPaymentController::class, 'verify'])->name('c2c.verify');

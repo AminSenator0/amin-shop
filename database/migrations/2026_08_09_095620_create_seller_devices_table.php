@@ -10,7 +10,7 @@ return new class extends Migration {
             $table->id();
             $table->string('device_name');
             $table->string('fcm_token')->nullable();
-            $table->string('api_key', 64)->unique()->nullable()->after('device_name'); // ← اضافه شد
+            $table->string('api_key', 64)->unique()->nullable();
             $table->boolean('is_active')->default(true);
             $table->timestamps();
         });

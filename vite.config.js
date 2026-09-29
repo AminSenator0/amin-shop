@@ -11,6 +11,7 @@ export default defineConfig({
                 'resources/js/admin.js',
                 'resources/js/admin-dashboard.js',
                 'resources/js/admin-financial.js',
+                'resources/js/admin-analytics-visits.js',
             ],
             refresh: true,
         }),

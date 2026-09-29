@@ -127,6 +127,12 @@ class ProductController extends Controller
             ->where('is_active', true)
             ->firstOrFail();
 
+        // 👁️ شمارش بازدید — فقط یک بار در هر سشن (ضد رفرش)
+        if (! session()->get("viewed_product_{$product->id}")) {
+            $product->increment('views');
+            session()->put("viewed_product_{$product->id}", true);
+        }
+
         $recentlyViewed->track($product->id);
 
         $relatedProducts = Product::with(['category', 'images'])

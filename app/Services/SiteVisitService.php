@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\SiteVisit;
+use App\Support\UserAgentParser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 
@@ -10,12 +11,26 @@ class SiteVisitService
 {
     public function record(Request $request): void
     {
-        SiteVisit::query()->insertOrIgnore([
-            'visit_date' => today()->toDateString(),
-            'visitor_key' => $this->visitorKey($request),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $key = $this->visitorKey($request);
+        $today = today()->toDateString();
+
+        // اگر بازدیدکننده امروز قبلاً ثبت شده → فقط شمارنده صفحه را زیاد کن
+        $updated = SiteVisit::query()
+            ->where('visit_date', $today)
+            ->where('visitor_key', $key)
+            ->increment('page_views');
+
+        if (! $updated) {
+            SiteVisit::query()->insertOrIgnore([
+                'visit_date' => $today,
+                'visitor_key' => $key,
+                'page_views' => 1,
+                'os' => UserAgentParser::os($request->userAgent()),
+                'browser' => UserAgentParser::browser($request->userAgent()),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
     }
 
     public function shouldTrack(Request $request): bool

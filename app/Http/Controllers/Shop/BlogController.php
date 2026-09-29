@@ -28,6 +28,12 @@ class BlogController extends Controller
             })
             ->firstOrFail();
 
+        // 👁️ شمارش بازدید — فقط یک بار در هر سشن (ضد رفرش)
+        if (! session()->get("viewed_post_{$post->id}")) {
+            $post->increment('views');
+            session()->put("viewed_post_{$post->id}", true);
+        }
+
         $relatedPosts = BlogPost::where('is_published', true)
             ->where('id', '!=', $post->id)
             ->where(function ($q) {
