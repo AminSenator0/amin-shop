@@ -51,6 +51,7 @@ use App\Http\Controllers\User\ReturnController as UserReturnController;
 use App\Http\Controllers\User\ReviewController as UserReviewController;
 use App\Http\Controllers\User\WishlistController as UserWishlistController;
 use App\Http\Controllers\Admin\AnalyticsController;
+use App\Http\Controllers\Admin\AccountSessionController;
 // ===== کنترلرهای کارت به کارت =====
 use App\Http\Controllers\Payment\C2CPaymentController;                           // برای آپلود رسید و پرداخت دستی
 use App\Http\Controllers\Shop\C2CPaymentController as ShopC2CPaymentController; // برای درخواست بررسی و وضعیت
@@ -193,6 +194,8 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::get('analytics', [AnalyticsController::class, 'visits'])->name('analytics.visits');
     Route::get('analytics/products', [AnalyticsController::class, 'products'])->name('analytics.products');
     Route::get('analytics/blog', [AnalyticsController::class, 'blog'])->name('analytics.blog');
+    Route::get('account-sessions', [AccountSessionController::class, 'index'])->name('account-sessions.index');
+    Route::delete('account-sessions/{accountSession}', [AccountSessionController::class, 'destroy'])->name('account-sessions.destroy');
     // ===== مدیریت پرداخت‌های کارت به کارت (ادمین) =====
     Route::get('c2c-payments', [AdminC2CPaymentController::class, 'index'])->name('c2c.index');
     Route::post('c2c-payments/{payment}/verify', [AdminC2CPaymentController::class, 'verify'])->name('c2c.verify');
@@ -212,6 +215,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::get('users/create', [AdminUserController::class, 'create'])->name('users.create');
     Route::post('users', [AdminUserController::class, 'store'])->name('users.store');
     Route::get('users', [AdminUserController::class, 'index'])->name('users.index');
+    Route::get('users/search', [AdminUserController::class, 'search'])->name('users.search');
     Route::get('users/{user}', [AdminUserController::class, 'show'])->name('users.show');
     Route::patch('users/{user}', [AdminUserController::class, 'update'])->name('users.update');
     Route::delete('users/{user}', [AdminUserController::class, 'destroy'])->name('users.destroy');
@@ -221,6 +225,8 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::patch('reviews/{review}/approve', [AdminReviewController::class, 'approve'])->name('reviews.approve');
     Route::patch('reviews/{review}/reject', [AdminReviewController::class, 'reject'])->name('reviews.reject');
     Route::delete('reviews/{review}', [AdminReviewController::class, 'destroy'])->name('reviews.destroy');
+    Route::post('reviews/{review}/reply', [AdminReviewController::class, 'reply'])->name('reviews.reply');
+    Route::delete('reviews/{review}/reply', [AdminReviewController::class, 'deleteReply'])->name('reviews.delete-reply');
     Route::resource('sliders', AdminSliderController::class)->except(['show']);
     Route::get('banners/form-upload/{key}', [AdminBannerController::class, 'formUpload'])->name('banners.form-upload');
     Route::resource('banners', AdminBannerController::class)->except(['show']);

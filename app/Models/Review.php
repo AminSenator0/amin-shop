@@ -14,12 +14,16 @@ class Review extends Model
         'rating',
         'comment',
         'is_approved',
+        'reply',
+        'replied_by',
+        'replied_at',
     ];
 
     protected function casts(): array
     {
         return [
             'is_approved' => 'boolean',
+            'replied_at' => 'datetime',
         ];
     }
 
@@ -36,5 +40,10 @@ class Review extends Model
     public function order(): BelongsTo
     {
         return $this->belongsTo(Order::class);
+    }
+
+    public function repliedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'replied_by');
     }
 }

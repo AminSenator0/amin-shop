@@ -62,6 +62,28 @@ class UserController extends Controller
             ->with('success', 'کاربر جدید ایجاد شد.');
     }
 
+        /** جستجوی زنده مشتری (برای سفارش دستی) */
+    public function search(Request $request)
+    {
+        $q = trim((string) $request->query('q', ''));
+
+        if (mb_strlen($q) < 2) {
+            return response()->json([]);
+        }
+
+        $users = \App\Models\User::query()
+            ->where(function ($query) use ($q) {
+                $query->where('name', 'like', "%{$q}%")
+                    ->orWhere('email', 'like', "%{$q}%")
+                    ->orWhere('phone', 'like', "%{$q}%");
+            })
+            ->orderBy('name')
+            ->limit(10)
+            ->get(['id', 'name', 'email', 'phone']);
+
+        return response()->json($users);
+    }
+
     public function export(Request $request): StreamedResponse
     {
         $query = User::query()->withCount('orders');

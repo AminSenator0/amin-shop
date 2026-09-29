@@ -16,6 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // ── فقط یک withMiddleware — همه چیز داخل همین ──
         $middleware->web(append: [
             \App\Http\Middleware\ShareStoreSettings::class,
             \App\Http\Middleware\NormalizePersianInput::class,

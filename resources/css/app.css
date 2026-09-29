@@ -5023,7 +5023,44 @@
     .home-payment-item { @apply rounded-lg border border-shop-border bg-shop-background px-3 py-1.5 text-xs font-bold text-shop-text; }
     .home-enamad-img { @apply h-16 w-auto object-contain; }
     .home-instagram-embed { @apply overflow-hidden rounded-2xl; }
+/* ─── پاسخ مدیر به نظر ─── */
+.review-card-reply {
+    margin-top: 0.9rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid #e0e7ff;
+    border-right: 3px solid #6366f1;
+    border-radius: 0.9rem;
+    background: #eef2ff40;
+}
 
+.review-card-reply-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #4f46e5;
+    margin-bottom: 0.4rem;
+}
+
+.review-card-reply-icon {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+}
+
+.review-card-reply-date {
+    font-weight: 400;
+    color: #9ca3af;
+    margin-right: auto;
+}
+
+.review-card-reply-text {
+    font-size: 0.875rem;
+    line-height: 1.9;
+    color: #3f3f46;
+    white-space: pre-line;
+}
     .home-about-panel {
         @apply relative overflow-hidden rounded-[1.75rem] border p-5 sm:rounded-3xl sm:p-7 lg:p-8;
         border-color: rgb(var(--shop-border-rgb) / 0.8);

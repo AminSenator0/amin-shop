@@ -31,10 +31,12 @@ use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
+
 
 
 class AppServiceProvider extends ServiceProvider
@@ -66,6 +68,20 @@ class AppServiceProvider extends ServiceProvider
         // ═══════════════════════════════════════════════
         // Event Listeners (Audit Logging)
         // ═══════════════════════════════════════════════
+
+        // ثبت نشست فعال کاربر هنگام ورود (IP جدید = نشست جدید، مثل تلگرام)
+        Event::listen(Login::class, function (Login $event) {
+            if (app()->runningInConsole()) {
+                return;
+            }
+
+            try {
+                app(\App\Services\AccountSessionService::class)
+                    ->record(request(), $event->user);
+            } catch (\Throwable $e) {
+                Log::error('AccountSession record failed: '.$e->getMessage());
+            }
+        });
 
         // Event::listen(Login::class, [LogAuthenticationEvents::class, 'handleLogin']);
         // Event::listen(Failed::class, [LogAuthenticationEvents::class, 'handleFailed']);
@@ -113,6 +129,11 @@ class AppServiceProvider extends ServiceProvider
                         'is_approved',
                         false
                     )->count(),
+                    // ← جدید: بج‌های سایدبار
+                    'pendingC2cCount' => \App\Models\C2CPayment::whereIn('status', ['pending', 'receipt_uploaded'])->count(),
+                    'mySessionsCount' => Auth::user()
+                        ? \App\Models\AccountSession::where('user_id', Auth::user()->id)->count()
+                        : 0,
                 ]);
             }
         );
@@ -187,40 +208,40 @@ class AppServiceProvider extends ServiceProvider
      */
     private function configureRateLimiting(): void
     {
-        // \u0644\u0627\u06af\u06cc\u0646: \u06f5 \u062a\u0644\u0627\u0634 \u062f\u0631 \u062f\u0642\u06cc\u0642\u0647
+        // لاگین: ۵ تلاش در دقیقه
         RateLimiter::for('login', function (Request $request) {
             return Limit::perMinute(5)
                 ->by($request->ip())
                 ->response(function () {
                     return back()->with(
                         'error',
-                        '\u062a\u0639\u062f\u0627\u062f \u062a\u0644\u0627\u0634\u200c\u0647\u0627\u06cc \u0646\u0627\u0645\u0648\u0641\u0642 \u0632\u06cc\u0627\u062f \u0628\u0648\u062f. \u0644\u0637\u0641\u0627\u064b \u06f1 \u062f\u0642\u06cc\u0642\u0647 \u062f\u06cc\u06af\u0631 \u062a\u0644\u0627\u0634 \u06a9\u0646\u06cc\u062f.'
+                        'تعداد تلاش‌های ناموفق زیاد بود. لطفاً ۱ دقیقه دیگر تلاش کنید.'
                     );
                 });
         });
 
 
-        // \u062b\u0628\u062a\u200c\u0646\u0627\u0645: \u06f3 \u062a\u0644\u0627\u0634 \u062f\u0631 \u062f\u0642\u06cc\u0642\u0647
+        // ثبت‌نام: ۳ تلاش در دقیقه
         RateLimiter::for('register', function (Request $request) {
             return Limit::perMinute(3)
                 ->by($request->ip())
                 ->response(function () {
                     return back()->with(
                         'error',
-                        '\u062a\u0639\u062f\u0627\u062f \u062b\u0628\u062a\u200c\u0646\u0627\u0645 \u0628\u06cc\u0634 \u0627\u0632 \u062d\u062f \u0645\u062c\u0627\u0632. \u0644\u0637\u0641\u0627\u064b \u06f1 \u062f\u0642\u06cc\u0642\u0647 \u0635\u0628\u0631 \u06a9\u0646\u06cc\u062f.'
+                        'تعداد ثبت‌نام بیش از حد مجاز. لطفاً ۱ دقیقه صبر کنید.'
                     );
                 });
         });
 
 
-        // \u06a9\u062f \u062a\u062e\u0641\u06cc\u0641: \u06f1\u06f0 \u062a\u0644\u0627\u0634 \u062f\u0631 \u062f\u0642\u06cc\u0642\u0647
+        // کد تخفیف: ۱۰ تلاش در دقیقه
         RateLimiter::for('coupon', function (Request $request) {
             return Limit::perMinute(10)
                 ->by($request->ip())
                 ->response(function () {
                     return back()->with(
                         'error',
-                        '\u062a\u0639\u062f\u0627\u062f \u062a\u0644\u0627\u0634 \u0628\u0631\u0627\u06cc \u06a9\u062f \u062a\u062e\u0641\u06cc\u0641 \u0632\u06cc\u0627\u062f \u0628\u0648\u062f. \u0644\u0637\u0641\u0627\u064b \u06f1 \u062f\u0642\u06cc\u0642\u0647 \u0635\u0628\u0631 \u06a9\u0646\u06cc\u062f.'
+                        'تعداد تلاش برای کد تخفیف زیاد بود. لطفاً ۱ دقیقه صبر کنید.'
                     );
                 });
         });
@@ -231,27 +252,27 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(20)->by($request->ip());
         });
 
-        // \u0641\u0631\u0645 \u062a\u0645\u0627\u0633/\u067e\u06cc\u0627\u0645: \u06f5 \u067e\u06cc\u0627\u0645 \u062f\u0631 \u0633\u0627\u0639\u062a
+        // فرم تماس/پیام: ۵ پیام در ساعت
         RateLimiter::for('contact', function (Request $request) {
             return Limit::perHour(5)
                 ->by($request->ip())
                 ->response(function () {
                     return back()->with(
                         'error',
-                        '\u0634\u0645\u0627 \u062f\u0631 \u06cc\u06a9 \u0633\u0627\u0639\u062a \u0641\u0642\u0637 \u06f5 \u067e\u06cc\u0627\u0645 \u0645\u06cc\u200c\u062a\u0648\u0627\u0646\u06cc\u062f \u0627\u0631\u0633\u0627\u0644 \u06a9\u0646\u06cc\u062f.'
+                        'شما در یک ساعت فقط ۵ پیام می‌توانید ارسال کنید.'
                     );
                 });
         });
 
 
-        // \u067e\u0631\u062f\u0627\u062e\u062a/\u062f\u0631\u06af\u0627\u0647: \u06f5 \u062a\u0644\u0627\u0634 \u062f\u0631 \u062f\u0642\u06cc\u0642\u0647
+        // پرداخت/درگاه: ۵ تلاش در دقیقه
         RateLimiter::for('payment', function (Request $request) {
             return Limit::perMinute(5)
                 ->by($request->ip())
                 ->response(function () {
                     return back()->with(
                         'error',
-                        '\u062a\u0639\u062f\u0627\u062f \u062a\u0644\u0627\u0634 \u0628\u0631\u0627\u06cc \u067e\u0631\u062f\u0627\u062e\u062a \u0632\u06cc\u0627\u062f \u0628\u0648\u062f. \u0644\u0637\u0641\u0627\u064b \u06f1 \u062f\u0642\u06cc\u0642\u0647 \u0635\u0628\u0631 \u06a9\u0646\u06cc\u062f.'
+                        'تعداد تلاش برای پرداخت زیاد بود. لطفاً ۱ دقیقه صبر کنید.'
                     );
                 });
         });
@@ -270,7 +291,7 @@ class AppServiceProvider extends ServiceProvider
 
             StoreSettings::applyMailConfig();
         } catch (\Throwable) {
-            // \u062f\u06cc\u062a\u0627\u0628\u06cc\u0633 \u062f\u0631 \u0632\u0645\u0627\u0646 migrate \u06cc\u0627 \u0646\u0635\u0628 \u0627\u0648\u0644\u06cc\u0647 \u062f\u0631 \u062f\u0633\u062a\u0631\u0633 \u0646\u06cc\u0633\u062a
+            // دیتابیس در زمان migrate یا نصب اولیه در دسترس نیست
         }
     }
 }

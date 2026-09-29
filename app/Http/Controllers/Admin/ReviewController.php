@@ -17,7 +17,7 @@ class ReviewController extends Controller
 
         $filteredQuery = $this->filteredReviewsQuery($request);
 
-        $query = (clone $filteredQuery)->with(['user', 'product']);
+        $query = (clone $filteredQuery)->with(['user', 'product', 'repliedBy']);
 
         if ($status === 'pending') {
             $query->where('is_approved', false);
@@ -75,5 +75,36 @@ class ReviewController extends Controller
         $review->delete();
 
         return back()->with('success', 'نظر حذف شد.');
+    }
+
+    /** پاسخ ادمین به نظر (ساخت یا ویرایش) */
+    public function reply(Request $request, Review $review)
+    {
+        $data = $request->validate([
+            'reply' => ['required', 'string', 'max:2000'],
+        ], [
+            'reply.required' => 'متن پاسخ را بنویسید.',
+            'reply.max' => 'پاسخ نمی‌تواند بیشتر از ۲۰۰۰ کاراکتر باشد.',
+        ]);
+
+        $review->update([
+            'reply' => $data['reply'],
+            'replied_by' => $request->user()->id,
+            'replied_at' => now(),
+        ]);
+
+        return back()->with('success', 'پاسخ ثبت شد.');
+    }
+
+    /** حذف پاسخ */
+    public function deleteReply(Review $review)
+    {
+        $review->update([
+            'reply' => null,
+            'replied_by' => null,
+            'replied_at' => null,
+        ]);
+
+        return back()->with('success', 'پاسخ حذف شد.');
     }
 }
