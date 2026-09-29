@@ -21,16 +21,16 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\NormalizePersianInput::class,
             \App\Http\Middleware\StoreMaintenanceMiddleware::class,
             \App\Http\Middleware\TrackSiteVisit::class,
-            \App\Http\Middleware\PostAuthAuditMiddleware::class, // ← اضافه شد
-            \App\Http\Middleware\MinifyHtml::class, // ← اضافه شد
-            \App\Http\Middleware\SecurityHeaders::class, // ← اضافه شد
+            \App\Http\Middleware\PostAuthAuditMiddleware::class,
+            \App\Http\Middleware\MinifyHtml::class,
+            \App\Http\Middleware\SecurityHeaders::class,
             AuditLogMiddleware::class,
             SuspiciousActivityMiddleware::class,
-            
         ]);
 
         $middleware->alias([
             'admin' => \App\Http\Middleware\AdminMiddleware::class,
+            'seller.auth' => \App\Http\Middleware\SellerApiAuth::class,
         ]);
 
         $middleware->redirectGuestsTo(function ($request) {
@@ -50,13 +50,6 @@ return Application::configure(basePath: dirname(__DIR__))
             }
             return route('user.dashboard');
         });
-    })
-
-
-    ->withMiddleware(function (Middleware $middleware) {
-        $middleware->alias([
-            'seller.auth' => \App\Http\Middleware\SellerApiAuth::class,
-        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->reportable(function (Throwable $e) {
