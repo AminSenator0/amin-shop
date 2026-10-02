@@ -35,20 +35,20 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->redirectGuestsTo(function ($request) {
-            if ($request->is('admin') || $request->is('admin/*')) {
-                return route('admin.login');
-            }
             return route('login');
         });
 
         $middleware->redirectUsersTo(function ($request) {
             $user = $request->user();
-            if ($request->is('admin/login') && $user?->isAdmin()) {
+
+            if ($request->is(config('admin.login_path')) && $user?->isAdmin()) {
                 return route('admin.dashboard');
             }
+
             if ($user?->isAdmin()) {
                 return route('admin.dashboard');
             }
+
             return route('user.dashboard');
         });
     })

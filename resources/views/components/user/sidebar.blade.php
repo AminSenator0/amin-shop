@@ -2,6 +2,7 @@
     $items = [
         ['route' => 'user.dashboard', 'pattern' => 'user.dashboard', 'label' => 'داشبورد', 'icon' => 'home'],
         ['route' => 'user.orders.index', 'pattern' => 'user.orders.*', 'label' => 'سفارشات من', 'icon' => 'orders'],
+        ['route' => 'wallet.index', 'pattern' => 'wallet.*', 'label' => 'کیف پول', 'icon' => 'wallet'],
         ['route' => 'user.returns.index', 'pattern' => 'user.returns.*', 'label' => 'مرجوعی‌ها', 'icon' => 'return', 'badge' => $openReturnsCount ?? 0],
         ['route' => 'user.wishlist.index', 'pattern' => 'user.wishlist.*', 'label' => 'علاقه‌مندی‌ها', 'icon' => 'heart', 'badge' => $wishlistCount ?? 0],
         ['route' => 'user.cart.index', 'pattern' => 'user.cart.*', 'label' => 'سبد خرید', 'icon' => 'cart', 'badge' => $cartCount ?? 0],

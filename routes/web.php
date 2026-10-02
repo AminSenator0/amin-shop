@@ -93,6 +93,7 @@ Route::post('/newsletter', [NewsletterController::class, 'subscribe'])->middlewa
 Route::get('/wishlist', [WishlistController::class, 'index'])->name('wishlist.index');
 Route::post('/wishlist/{product}', [WishlistController::class, 'toggle'])->name('wishlist.toggle');
 Route::get('/payment/callback', [PaymentController::class, 'callback'])->name('payment.callback');
+Route::get('/wallet/callback', [\App\Http\Controllers\User\WalletController::class, 'callback'])->name('wallet.callback');
 Route::get('/sitemap.xml', function () {
     $categories = Category::where('is_active', true)->get();
     $products = Product::where('is_active', true)->get();
@@ -116,6 +117,11 @@ Route::middleware('auth')->group(function () {
         ->name('checkout.payment.process');
     Route::post('/products/{product}/reviews', [ReviewController::class, 'store'])->name('products.reviews.store');
 
+        // ===== کیف پول =====
+    Route::get('/wallet', [\App\Http\Controllers\User\WalletController::class, 'index'])->name('wallet.index');
+    Route::post('/wallet/charge', [\App\Http\Controllers\User\WalletController::class, 'charge'])->middleware('throttle:payment')->name('wallet.charge');
+    Route::post('/wallet/charge-c2c', [\App\Http\Controllers\User\WalletController::class, 'chargeC2c'])->middleware('throttle:payment')->name('wallet.charge-c2c');
+     Route::post('/wallet/withdraw', [\App\Http\Controllers\User\WalletController::class, 'withdraw'])->middleware('throttle:payment')->name('wallet.withdraw');
     // ========== کارت به کارت (فقط این ۵ خط) ==========
     Route::get('/c2c/{order}', [\App\Http\Controllers\Payment\C2CPaymentController::class, 'show'])->name('c2c.show');
     Route::post('/c2c/check/{order}', [\App\Http\Controllers\Payment\C2CPaymentController::class, 'checkStatus'])->name('c2c.check');
@@ -160,11 +166,11 @@ Route::middleware('auth')->group(function () {
 // ============================
 // ورود به پنل مدیریت
 // ============================
-Route::prefix('admin')->name('admin.')->middleware('guest')->group(function () {
-    Route::get('login', [AdminLoginController::class, 'create'])->name('login');
-    Route::post('login', [AdminLoginController::class, 'store']);
+// ورود مدیر — فقط از مسیر مخفیِ تعریف‌شده در ADMIN_LOGIN_PATH
+Route::prefix(config('admin.login_path'))->name('admin.')->middleware('guest')->group(function () {
+    Route::get('/', [AdminLoginController::class, 'create'])->name('login');
+    Route::post('/', [AdminLoginController::class, 'store']);
 });
-
 // ============================
 // پنل مدیریت (ادمین)
 // ============================
@@ -200,6 +206,14 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::get('c2c-payments', [AdminC2CPaymentController::class, 'index'])->name('c2c.index');
     Route::post('c2c-payments/{payment}/verify', [AdminC2CPaymentController::class, 'verify'])->name('c2c.verify');
     Route::post('c2c-payments/{payment}/reject', [AdminC2CPaymentController::class, 'reject'])->name('c2c.reject');
+    // ===== مدیریت کیف پول (ادمین) =====
+    Route::get('wallet/deposits', [\App\Http\Controllers\Admin\WalletController::class, 'deposits'])->name('wallet.deposits.index');
+    Route::post('wallet/deposits/{deposit}/verify', [\App\Http\Controllers\Admin\WalletController::class, 'verifyDeposit'])->name('wallet.deposits.verify');
+    Route::post('wallet/deposits/{deposit}/reject', [\App\Http\Controllers\Admin\WalletController::class, 'rejectDeposit'])->name('wallet.deposits.reject');
+    Route::get('wallet/withdrawals', [\App\Http\Controllers\Admin\WalletController::class, 'withdrawals'])->name('wallet.withdrawals.index');
+    Route::post('wallet/withdrawals/{withdrawal}/approve', [\App\Http\Controllers\Admin\WalletController::class, 'approveWithdrawal'])->name('wallet.withdrawals.approve');
+    Route::post('wallet/withdrawals/{withdrawal}/reject', [\App\Http\Controllers\Admin\WalletController::class, 'rejectWithdrawal'])->name('wallet.withdrawals.reject');
+
 
     Route::resource('brands', AdminBrandController::class)->except(['show']);
     Route::get('returns', [AdminReturnController::class, 'index'])->name('returns.index');
@@ -218,6 +232,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::get('users/search', [AdminUserController::class, 'search'])->name('users.search');
     Route::get('users/{user}', [AdminUserController::class, 'show'])->name('users.show');
     Route::patch('users/{user}', [AdminUserController::class, 'update'])->name('users.update');
+    Route::post('users/{user}/wallet/adjust', [AdminUserController::class, 'adjustWallet'])->name('users.wallet.adjust');
     Route::delete('users/{user}', [AdminUserController::class, 'destroy'])->name('users.destroy');
     Route::resource('shipping', ShippingMethodController::class)->except(['show']);
     Route::resource('coupons', AdminCouponController::class)->except(['show']);
@@ -229,6 +244,8 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::delete('reviews/{review}/reply', [AdminReviewController::class, 'deleteReply'])->name('reviews.delete-reply');
     Route::resource('sliders', AdminSliderController::class)->except(['show']);
     Route::get('banners/form-upload/{key}', [AdminBannerController::class, 'formUpload'])->name('banners.form-upload');
+    Route::resource('hero-banners', \App\Http\Controllers\Admin\HeroBannerController::class)->except('show');
+    Route::resource('footer-licenses', \App\Http\Controllers\Admin\FooterLicenseController::class)->except('show');
     Route::resource('banners', AdminBannerController::class)->except(['show']);
     Route::get('homepage', [AdminHomepageController::class, 'index'])->name('homepage.index');
     Route::put('homepage', [AdminHomepageController::class, 'update'])->name('homepage.update');

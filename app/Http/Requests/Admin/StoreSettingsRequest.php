@@ -55,6 +55,10 @@ class StoreSettingsRequest extends FormRequest
             'trust_badges.*.title' => ['required_with:trust_badges', 'string', 'max:100'],
             'trust_badges.*.desc' => ['nullable', 'string', 'max:200'],
             'trust_badges.*.icon' => ['nullable', 'string', 'max:2000'],
+            'c2c_cards' => ['nullable', 'array', 'max:10'],
+            'c2c_cards.*.number' => ['required', 'string', 'max:25', 'regex:/^[\d\s-]+$/'],
+            'c2c_cards.*.owner' => ['required', 'string', 'max:100'],
+            'c2c_cards.*.bank' => ['nullable', 'string', 'max:50'],
             'zarinpal_merchant_id' => ['nullable', 'string', 'max:36'],
             'zarinpal_sandbox' => ['sometimes', 'boolean'],
             'zarinpal_callback_base_url' => ['nullable', 'string', 'max:255', function (string $attribute, mixed $value, \Closure $fail) {
@@ -128,6 +132,15 @@ class StoreSettingsRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        // ردیف‌های خالی کارت‌به‌کارت را حذف کن (قبل از validation)
+        $cards = $this->input('c2c_cards');
+        if (is_array($cards)) {
+            $cards = array_values(array_filter($cards, function ($card) {
+                return is_array($card) && trim((string) ($card['number'] ?? '')) !== '';
+            }));
+            $this->merge(['c2c_cards' => $cards]);
+        }
+
         $presetId = $this->input('color_preset', StoreSettings::resolveColorPresetId());
         if (! StoreSettings::isValidColorPresetId($presetId)) {
             $presetId = StoreSettings::defaultColorPresetId();

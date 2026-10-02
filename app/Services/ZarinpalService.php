@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Order;
+use App\Models\WalletDeposit;
 use App\Support\StoreSettings;
 use Illuminate\Support\Facades\Http;
 
@@ -18,35 +19,91 @@ class ZarinpalService
         return StoreSettings::zarinpalSandbox();
     }
 
+    /**
+     * درخواست پرداخت برای سفارش (مبلغ سفارش: تومان → ریال تبدیل می‌شود).
+     * ⚠️ این متد API عمومی است — سفارش‌ها از همین استفاده می‌کنند.
+     */
     public function requestPayment(Order $order): array
     {
-        $merchantId = $this->requireMerchantId();
-        $amount = $this->amountInRials((int) $order->total);
-
-        if ($amount < 10000) {
-            throw new \RuntimeException('حداقل مبلغ قابل پرداخت از طریق زرین‌پال ۱۰٬۰۰۰ ریال است.');
-        }
-
         $order->loadMissing('user');
 
         $mobile = data_get($order->shipping_address, 'phone')
             ?: $order->user?->phone;
         $email = $order->user?->email;
 
-        $metadata = array_filter([
-            'mobile' => $mobile ? (string) $mobile : null,
-            'email' => $email ? (string) $email : null,
-            'order_id' => (string) $order->id,
-        ], fn ($value) => filled($value));
+        return $this->requestGatewayPayment(
+            amountRials: $this->amountInRials((int) $order->gatewayPayable()),
+            description: "سفارش {$order->order_number}",
+            metadata: array_filter([
+                'mobile' => $mobile ? (string) $mobile : null,
+                'email' => $email ? (string) $email : null,
+                'order_id' => (string) $order->id,
+            ], fn ($value) => filled($value)),
+            callbackUrl: StoreSettings::zarinpalCallbackUrl(),
+        );
+    }
+
+    /**
+     * درخواست پرداخت برای شارژ کیف پول.
+     * ⚠️ مبلغ deposit قبلاً به ریال است — تبدیل واحد انجام نمی‌شود.
+     */
+    public function requestWalletPayment(WalletDeposit $deposit): array
+    {
+        $deposit->loadMissing('user');
+
+        return $this->requestGatewayPayment(
+            amountRials: $this->amountInRials((int) $deposit->amount),
+            description: 'شارژ کیف پول',
+            metadata: array_filter([
+                'mobile' => $deposit->user?->phone ? (string) $deposit->user->phone : null,
+                'email' => $deposit->user?->email ? (string) $deposit->user->email : null,
+                'wallet_deposit_id' => (string) $deposit->id,
+            ], fn ($value) => filled($value)),
+            callbackUrl: $this->walletCallbackUrl(),
+        );
+    }
+
+    /**
+     * تأیید پرداخت سفارش (ورودی: تومان).
+     */
+    public function verifyPayment(string $authority, int $amountToman): array
+    {
+        return $this->verify($authority, $this->amountInRials($amountToman));
+    }
+
+    /**
+     * تأیید پرداخت کیف پول (ورودی: ریال — بدون تبدیل).
+     */
+    public function verifyPaymentByRials(string $authority, int $amountRials): array
+    {
+        return $this->verify($authority, $amountRials);
+    }
+
+    public function amountInRials(int $amountInStoreCurrency): int
+    {
+        return StoreSettings::zarinpalAmountInRials($amountInStoreCurrency);
+    }
+
+    // ─────────────────────────────────────────────
+    //  بخش خصوصی
+    // ─────────────────────────────────────────────
+
+    private function requestGatewayPayment(int $amountRials, string $description, array $metadata, string $callbackUrl): array
+    {
+        $merchantId = $this->requireMerchantId();
+
+        if ($amountRials < 10000) {
+            throw new \RuntimeException('حداقل مبلغ قابل پرداخت از طریق زرین‌پال ۱۰٬۰۰۰ ریال است.');
+        }
 
         $response = Http::acceptJson()
             ->asJson()
             ->timeout(30)
             ->post($this->apiBaseUrl().'/payment/request.json', [
                 'merchant_id' => $merchantId,
-                'amount' => $amount,
-                'callback_url' => StoreSettings::zarinpalCallbackUrl(),
-                'description' => "سفارش {$order->order_number}",
+                'amount' => $amountRials,
+                'callback_url' => $callbackUrl,
+                'description' => $description,
                 'metadata' => $metadata,
             ]);
 
@@ -71,7 +128,7 @@ class ZarinpalService
         ];
     }
 
-    public function verifyPayment(string $authority, int $amountToman): array
+    private function verify(string $authority, int $amountRials): array
     {
         $authority = trim($authority);
 
@@ -79,19 +136,18 @@ class ZarinpalService
             throw new \RuntimeException('شناسه تراکنش نامعتبر است.');
         }
 
-        if ($amountToman < 1) {
-            throw new \RuntimeException('مبلغ سفارش برای تایید پرداخت نامعتبر است.');
+        if ($amountRials < 1) {
+            throw new \RuntimeException('مبلغ برای تایید پرداخت نامعتبر است.');
         }
 
         $merchantId = $this->requireMerchantId();
-        $amount = $this->amountInRials($amountToman);
 
         $response = Http::acceptJson()
             ->asJson()
             ->timeout(30)
             ->post($this->apiBaseUrl().'/payment/verify.json', [
                 'merchant_id' => $merchantId,
-                'amount' => $amount,
+                'amount' => $amountRials,
                 'authority' => $authority,
             ]);
 
@@ -119,9 +175,18 @@ class ZarinpalService
         ];
     }
 
-    public function amountInRials(int $amountInStoreCurrency): int
+    /**
+     * آدرس کامل callback کیف پول (همون پترن zarinpalCallbackUrl برای سفارش‌ها).
+     */
+    private function walletCallbackUrl(): string
     {
-        return StoreSettings::zarinpalAmountInRials($amountInStoreCurrency);
+        $path = route('wallet.callback', absolute: false);
+
+        if (! str_starts_with($path, '/')) {
+            $path = '/'.$path;
+        }
+
+        return StoreSettings::zarinpalCallbackBaseUrl().$path;
     }
 
     private function merchantId(): string

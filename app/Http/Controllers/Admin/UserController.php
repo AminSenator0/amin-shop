@@ -124,16 +124,19 @@ class UserController extends Controller
         ]);
     }
 
-    public function show(User $user)
-    {
-        $user->loadCount(['orders', 'addresses', 'reviews']);
-        $user->load(['orders' => fn ($q) => $q->latest()->take(10), 'addresses']);
+public function show(User $user)
+{
+    $user->loadCount(['orders', 'addresses', 'reviews']);
+    $user->load(['orders' => fn ($q) => $q->latest()->take(10), 'addresses']);
 
-        $totalSpent = $user->orders()->where('payment_status', PaymentStatus::Paid)->sum('total');
+    $totalSpent = $user->orders()->where('payment_status', PaymentStatus::Paid)->sum('total');
 
-        return view('admin.users.show', compact('user', 'totalSpent'));
-    }
+    // ⬇️ این ۳ خط جدیدن — مربوط به کیف پول ⬇️
+    $wallet = $user->wallet?->load(['transactions' => fn ($q) => $q->latest()->take(10)]);
+    $walletBalance = $wallet?->balance ?? 0;
 
+    return view('admin.users.show', compact('user', 'totalSpent', 'wallet', 'walletBalance'));
+}
     public function update(UserUpdateRequest $request, User $user)
     {
         $data = $request->validated();
@@ -184,5 +187,50 @@ class UserController extends Controller
         return redirect()
             ->route('admin.users.index')
             ->with('success', "کاربر {$name} با موفقیت حذف شد.");
+    }
+
+        /**
+     * تنظیم دستی موجودی کیف پول توسط ادمین.
+     * ادمین مستقیماً موجودی را edit نمی‌کند؛ یک تراکنش admin_adjustment ایجاد می‌کند.
+     */
+    public function adjustWallet(Request $request, User $user)
+    {
+        $validated = $request->validate([
+            'amount'      => ['required', 'integer', 'not_in:0'],
+            'reason'      => ['required', 'string', 'min:5', 'max:500'],
+        ]);
+
+        $wallet = app(\App\Services\WalletService::class)->getOrCreateForUser($user);
+        $amount = abs((int) $validated['amount']);
+
+        try {
+            if ($validated['amount'] > 0) {
+                // واریز (مثبت)
+                app(\App\Services\WalletService::class)->credit(
+                    $wallet,
+                    $amount,
+                    \App\Enums\WalletReferenceType::AdminAdjustment,
+                    null,
+                    $validated['reason'],
+                    auth()->user()
+                );
+            } else {
+                // برداشت (منفی)
+                app(\App\Services\WalletService::class)->debit(
+                    $wallet,
+                    $amount,
+                    \App\Enums\WalletReferenceType::AdminAdjustment,
+                    null,
+                    $validated['reason'],
+                    auth()->user()
+                );
+            }
+
+            return redirect()
+                ->route('admin.users.show', $user)
+                ->with('success', 'موجودی کیف پول با موفقیت تنظیم شد.');
+        } catch (\App\Exceptions\InsufficientFundsException $e) {
+            return back()->with('error', $e->getMessage());
+        }
     }
 }

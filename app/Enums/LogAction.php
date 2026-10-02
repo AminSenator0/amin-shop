@@ -37,6 +37,17 @@ enum LogAction: string
     case ORDER_STATUS_CHANGED = 'order_status_changed';
     case ORDER_CANCELLED = 'order_cancelled';
 
+        // Wallet
+    case WALLET_CREDITED = 'wallet_credited';
+    case WALLET_DEBITED = 'wallet_debited';
+    case WALLET_DEBIT_FAILED = 'wallet_debit_failed';
+    case WALLET_DEPOSIT_CREATED = 'wallet_deposit_created';
+    case WALLET_DEPOSIT_VERIFIED = 'wallet_deposit_verified';
+    case WALLET_DEPOSIT_REJECTED = 'wallet_deposit_rejected';
+    case WALLET_WITHDRAWAL_REQUESTED = 'wallet_withdrawal_requested';
+    case WALLET_WITHDRAWAL_PAID = 'wallet_withdrawal_paid';
+    case WALLET_WITHDRAWAL_REJECTED = 'wallet_withdrawal_rejected';
+    case ADMIN_WALLET_ADJUSTED = 'admin_wallet_adjusted';
     // Payment
     case PAYMENT_CREATED = 'payment_created';
     case PAYMENT_STARTED = 'payment_started';
@@ -110,6 +121,9 @@ enum LogAction: string
             str_starts_with($this->value, 'order_status_'),
             str_starts_with($this->value, 'order_cancelled') => LogCategory::ADMIN,
 
+            str_starts_with($this->value, 'wallet_'),
+            str_starts_with($this->value, 'admin_wallet') => LogCategory::PAYMENT,
+            
             str_starts_with($this->value, 'payment_'),
             str_starts_with($this->value, 'duplicate_'),
             str_starts_with($this->value, 'amount_'),
@@ -198,6 +212,18 @@ enum LogAction: string
             self::COUPON_UNAUTHORIZED_USE => 'استفاده غیرمجاز Coupon',
             self::COUPON_OVERUSE_ATTEMPT => 'استفاده بیش از سقف مجاز',
 
+            self::WALLET_CREDITED => 'واریز به کیف پول',
+            self::WALLET_DEBITED => 'برداشت از کیف پول',
+            self::WALLET_DEBIT_FAILED => 'برداشت ناموفق از کیف پول',
+            self::WALLET_DEPOSIT_CREATED => 'ایجاد درخواست شارژ کیف پول',
+            self::WALLET_DEPOSIT_VERIFIED => 'تأیید شارژ کیف پول',
+            self::WALLET_DEPOSIT_REJECTED => 'رد شارژ کیف پول',
+            self::WALLET_WITHDRAWAL_REQUESTED => 'درخواست برداشت از کیف پول',
+            self::WALLET_WITHDRAWAL_PAID => 'پرداخت برداشت کیف پول',
+            self::WALLET_WITHDRAWAL_REJECTED => 'رد برداشت کیف پول',
+            self::ADMIN_WALLET_ADJUSTED => 'تنظیم دستی موجودی کیف پول',
+
+
             self::MASS_LOGIN_FAILED => 'تعداد زیاد Login Failed',
             self::MASS_FORGOT_PASSWORD => 'تعداد زیاد Forgot Password',
             self::MASS_RESET_REQUESTS => 'تعداد زیاد Reset برای کاربران مختلف',
@@ -249,7 +275,10 @@ enum LogAction: string
             self::PASSWORD_CHANGED,          // ← تغییر از INFO به HIGH
             self::EMAIL_PHONE_CHANGED,       // ← تغییر از CRITICAL به HIGH (برای ادمین trigger می‌شه)
             self::SITE_SETTINGS_CHANGED => LogSeverity::HIGH, // ← تغییر از INFO به HIGH
-    
+            self::WALLET_DEBIT_FAILED,
+            self::WALLET_DEPOSIT_REJECTED,
+            self::WALLET_WITHDRAWAL_REJECTED,
+            self::ADMIN_WALLET_ADJUSTED => LogSeverity::HIGH,
             self::NEW_DEVICE_OR_IP,
             self::MASS_RESET_REQUESTS,
             self::ENDPOINT_FLOOD,

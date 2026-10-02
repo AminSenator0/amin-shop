@@ -11,11 +11,14 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\ShippingMethod;
+use App\Models\Wallet;
+use App\Enums\WalletReferenceType;
 use App\Services\CartService;
 use App\Services\CouponService;
 use App\Services\OrderService;
 use App\Services\ZarinpalService;
-use App\Services\C2CPaymentService; // ← اضافه شده
+use App\Services\C2CPaymentService;
+use App\Services\WalletService;
 use App\Support\StoreSettings;
 use Illuminate\Support\Facades\DB;
 
@@ -26,7 +29,8 @@ class CheckoutController extends Controller
         private CouponService $coupons,
         private ZarinpalService $zarinpal,
         private OrderService $orders,
-        private C2CPaymentService $c2c, // ← اضافه شده
+        private C2CPaymentService $c2c,
+        private WalletService $wallets,
     ) {}
 
     public function index()
@@ -44,7 +48,10 @@ class CheckoutController extends Controller
         $defaultAddress = auth()->user()->defaultAddress();
         $minOrderAmount = StoreSettings::int('min_order_amount');
 
-        return view('shop.checkout', compact('items', 'subtotal', 'discount', 'appliedCoupon', 'shippingMethods', 'addresses', 'defaultAddress', 'minOrderAmount'));
+        // موجودی کیف پول برای گزینه‌ی پرداخت ترکیبی
+        $wallet = $this->wallets->getOrCreateForUser(auth()->user());
+
+        return view('shop.checkout', compact('items', 'subtotal', 'discount', 'appliedCoupon', 'shippingMethods', 'addresses', 'defaultAddress', 'minOrderAmount', 'wallet'));
     }
 
     public function store(CheckoutRequest $request)
@@ -128,12 +135,11 @@ class CheckoutController extends Controller
                 $discount = min($discount, $subtotal);
                 $shippingCost = $shippingMethod->calculateCost($subtotal - $discount);
                 $total = max(0, $subtotal - $discount) + $shippingCost;
-               // $total = $cart->items->sum(fn($item) => $item->price * $item->quantity);
 
                 // ⬇️⬇️⬇️ تخفیف کارت به کارت ⬇️⬇️⬇️
                 $c2cDiscount = 0;
                 $payable = $total;
-                
+
                 if ($validated['payment_method'] === 'c2c') {
                     $discountPercent = (float) (\App\Support\StoreSettings::get('c2c_discount_percent') ?? 1);
                     $c2cDiscount = round($total * $discountPercent / 100);
@@ -145,7 +151,7 @@ class CheckoutController extends Controller
                     'order_number' => Order::generateOrderNumber(),
                     'status' => OrderStatus::Pending,
                     'payment_status' => PaymentStatus::Pending,
-                    'payment_method' => $validated['payment_method'], // ← اضافه شده
+                    'payment_method' => $validated['payment_method'],
                     'shipping_method_id' => $shippingMethod->id,
                     'coupon_id' => $coupon?->id,
                     'coupon_code' => $coupon?->code,
@@ -153,8 +159,8 @@ class CheckoutController extends Controller
                     'shipping_cost' => $shippingCost,
                     'discount_amount' => $discount,
                     'total' => $total,
-                    'c2c_discount' => $c2cDiscount,        // ⬅️ اضافه شد
-                    'payable' => $payable,                 // ⬅️ اضافه شد
+                    'c2c_discount' => $c2cDiscount,
+                    'payable' => $payable,
                     'shipping_address' => $address->toSnapshot(),
                     'notes' => $validated['notes'] ?? null,
                 ]);
@@ -190,6 +196,45 @@ class CheckoutController extends Controller
                     throw new \RuntimeException('مغایرت در محاسبه مبلغ سفارش.');
                 }
 
+                // ⬇️⬇️⬇️ پرداخت ترکیبی با کیف پول ⬇️⬇️⬇️
+                $walletPart = 0;
+
+                if (($validated['use_wallet'] ?? false) && $payable > 0) {
+                    $wallet = Wallet::query()
+                        ->where('user_id', auth()->id())
+                        ->lockForUpdate()
+                        ->first();
+
+                    if ($wallet && $wallet->is_active && $wallet->balance > 0) {
+                        // سهم کیف پول = حداکثرِ ممکن از موجودی (فقط سمت سرور محاسبه می‌شود)
+                        $walletPart = min($wallet->balance, $payable);
+
+                        $this->wallets->debit(
+                            $wallet,
+                            $walletPart,
+                            WalletReferenceType::OrderPayment,
+                            $order->id,
+                            'پرداخت سفارش '.$order->order_number,
+                        );
+
+                        $order->update(['wallet_amount' => $walletPart]);
+                    }
+                }
+
+                // اگر کیف پول کل مبلغ را پوشش داد → سفارش فوراً پرداخت‌شده
+                if ($walletPart > 0 && $walletPart >= $payable) {
+                    $order->update([
+                        'payment_method' => 'wallet',
+                        'payment_status' => PaymentStatus::Paid,
+                        'status'         => OrderStatus::Paid,
+                        'paid_at'        => now(),
+                        'payment_ref'    => 'WALLET-'.$order->id,
+                    ]);
+
+                    $this->orders->logActivity($order, 'paid', 'سفارش به‌صورت کامل با کیف پول پرداخت شد.');
+                }
+                // ⬆️⬆️⬆️ پایان پرداخت ترکیبی ⬆️⬆️⬆️
+
                 $this->orders->logActivity($order, 'created', 'سفارش توسط مشتری ثبت شد.');
 
                 return $order;
@@ -203,7 +248,13 @@ class CheckoutController extends Controller
 
         $this->orders->sendConfirmationEmail($order);
 
-        // ← تغییر: ریدایرکت بر اساس روش پرداخت
+        // ⬇️ اگر کاملاً با کیف پول پرداخت شده → مستقیم به صفحه سفارش ⬇️
+        if ($order->isFullyPaidByWallet()) {
+            return redirect()
+                ->route('user.orders.show', $order)
+                ->with('success', 'سفارش شما ثبت و از کیف پول پرداخت شد.');
+        }
+
         if ($order->payment_method === 'c2c') {
             return redirect()->route('c2c.show', $order)->with('success', 'سفارش ثبت شد. لطفاً پرداخت کارت به کارت را انجام دهید.');
         }
@@ -221,7 +272,6 @@ class CheckoutController extends Controller
             return redirect()->route('user.orders.show', $order);
         }
 
-        // ← اضافه: اگر روش کارت به کارت بود، به صفحه C2C هدایت کن
         if ($order->payment_method === 'c2c') {
             return redirect()->route('c2c.show', $order);
         }

@@ -11,6 +11,8 @@ use App\Models\Order;
 use App\Models\OrderReturn;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Enums\WalletReferenceType;
+use App\Services\WalletService;
 
 class ReturnController extends Controller
 {
@@ -75,10 +77,29 @@ class ReturnController extends Controller
         }
 
         DB::transaction(function () use ($orderReturn, $updates, $status) {
-            $orderReturn->update($updates);
+            $locked = OrderReturn::lockForUpdate()->findOrFail($orderReturn->id);
 
-            if ($status === ReturnStatus::Refunded) {
-                $orderReturn->order->update(['payment_status' => PaymentStatus::Refunded]);
+            // آیا قبلاً بازپرداخت شده؟ (جلوگیری از دوبار واریز)
+            $alreadyRefunded = $locked->status === ReturnStatus::Refunded;
+
+            $locked->update($updates);
+
+            if ($status === ReturnStatus::Refunded && ! $alreadyRefunded) {
+                $locked->order->update(['payment_status' => PaymentStatus::Refunded]);
+
+                // ⬇️⬇️⬇️ بازگشت وجه به کیف پول مشتری ⬇️⬇️⬇️
+                $wallet = app(\App\Services\WalletService::class)
+                    ->getOrCreateForUser($locked->order->user);
+
+                app(\App\Services\WalletService::class)->credit(
+                    $wallet,
+                    (int) $locked->refund_amount,
+                    \App\Enums\WalletReferenceType::OrderReturnRefund,
+                    $locked->id,
+                    'بازگشت وجه مرجوعی سفارش '.$locked->order->order_number,
+                    auth()->user() // ادمین انجام‌دهنده در دفتر کل ثبت می‌شود
+                );
+                // ⬆️⬆️⬆️ پایان بازگشت وجه ⬆️⬆️⬆️
             }
         });
 

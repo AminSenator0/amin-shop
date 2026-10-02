@@ -30,6 +30,8 @@ class CheckoutRequest extends FormRequest
             'subtotal' => ['prohibited'],
             'shipping_cost' => ['prohibited'],
             'discount' => ['prohibited'],
+            'use_wallet' => ['nullable', 'boolean'],
+            'wallet_amount' => ['prohibited'],
             'discount_amount' => ['prohibited'],
             'price' => ['prohibited'],
         ];
@@ -42,6 +44,7 @@ class CheckoutRequest extends FormRequest
             'subtotal.prohibited' => 'دستکاری مبلغ سفارش مجاز نیست.',
             'shipping_cost.prohibited' => 'دستکاری هزینه ارسال مجاز نیست.',
             'discount.prohibited' => 'دستکاری تخفیف مجاز نیست.',
+            'wallet_amount.prohibited' => 'دستکاری مبلغ کیف پول مجاز نیست.',
             'discount_amount.prohibited' => 'دستکاری تخفیف مجاز نیست.',
             'price.prohibited' => 'دستکاری قیمت مجاز نیست.',
         ];

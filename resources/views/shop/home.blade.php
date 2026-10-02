@@ -2,6 +2,21 @@
 
 @section('title', ($store['tagline'] ? $store['name'] . ' | ' . $store['tagline'] : $store['name']))
 
+@push('head')
+<style>
+/* ─── اسلایدر هیرو: انیمیشن Ken Burns ─── */
+.hero-banner-img.is-active {
+    animation: hero-kenburns 6.5s ease-out both;
+    will-change: transform;
+}
+@keyframes hero-kenburns {
+    0%   { transform: scale(1.02); }
+    100% { transform: scale(1.14); }
+}
+</style>
+@endpush
+
+
 @php
     $productCount = \App\Models\Product::where('is_active', true)->count();
     $topCategories = $categories->sortByDesc(fn ($c) => $c->activeProducts()->count())->take(6);
@@ -176,35 +191,63 @@
                     <div class="home-hero-ring" aria-hidden="true"></div>
                     <div class="home-hero-collage">
                         <div class="home-hero-collage-main">
-                            @php $heroImage = hero_showcase_image_sources(); @endphp
-                            <picture>
-                                @if($heroImage['webp'])
-                                    <source srcset="{{ $heroImage['webp'] }}" type="image/webp">
-                                @endif
-                                <img
-                                    src="{{ $heroImage['jpg'] ?? $heroImage['webp'] ?? hero_showcase_image_url() }}"
-                                    alt="ویترین {{ $store['name'] }}"
-                                    class="h-full w-full object-cover"
-                                    width="1200"
-                                    height="800"
-                                    fetchpriority="high"
-                                    decoding="async"
-                                >
-                            </picture>
-                            @if(($heroMaxDiscount ?? 0) > 0)
-                                <div class="home-hero-collage-badge">
-                                    <span class="home-hero-collage-badge-label">تخفیف ویژه</span>
-                                    <span class="home-hero-collage-badge-value">تا {{ to_persian_digits((string) $heroMaxDiscount) }}٪</span>
+                            @if($heroBanners->isNotEmpty())
+                                {{-- اسلایدر هیرو — مدیریت از: پنل ادمین → بنرهای هیرو --}}
+                                <div class="relative h-full w-full overflow-hidden"
+                                     x-data="{
+                                         current: 0,
+                                         total: {{ $heroBanners->count() }},
+                                         timer: null,
+                                         start() { if (this.total > 1) { this.stop(); this.timer = setInterval(() => { this.current = (this.current + 1) % this.total }, 6000) } },
+                                         stop() { clearInterval(this.timer) }
+                                     }"
+                                     x-init="start()"
+                                     @mouseenter="stop()"
+                                     @mouseleave="start()">
+                                    @foreach($heroBanners as $index => $banner)
+                                        <div class="absolute inset-0"
+                                             :class="current === {{ $index }} ? 'z-10 opacity-100' : 'z-0 opacity-0'"
+                                             style="transition: opacity 1.2s ease;">
+                                            @if($banner->link)
+                                                <a href="{{ $banner->link }}" class="block h-full w-full">
+                                                    <img src="{{ $banner->imageUrl() }}" alt="{{ $banner->title }}" class="hero-banner-img h-full w-full object-cover" :class="current === {{ $index }} && 'is-active'">
+                                                </a>
+                                            @else
+                                                <img src="{{ $banner->imageUrl() }}" alt="{{ $banner->title }}" class="hero-banner-img h-full w-full object-cover" :class="current === {{ $index }} && 'is-active'">
+                                            @endif
+                                        </div>
+                                    @endforeach
+
+                                    @if($heroBanners->count() > 1)
+                                        <div class="absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 gap-1.5">
+                                            @foreach($heroBanners as $index => $banner)
+                                                <button type="button"
+                                                        @click="stop(); current = {{ $index }}; start()"
+                                                        :class="current === {{ $index }} ? 'w-5 bg-white' : 'w-2 bg-white/50 hover:bg-white/80'"
+                                                        class="h-2 rounded-full transition-all duration-300"
+                                                        aria-label="اسلاید {{ $index + 1 }}"></button>
+                                            @endforeach
+                                        </div>
+                                    @endif
                                 </div>
+                            @else
+                                @php $heroImage = hero_showcase_image_sources(); @endphp
+                                <picture>
+                                    @if($heroImage['webp'])
+                                        <source srcset="{{ $heroImage['webp'] }}" type="image/webp">
+                                    @endif
+                                    <img
+                                        src="{{ $heroImage['jpg'] ?? $heroImage['webp'] ?? hero_showcase_image_url() }}"
+                                        alt="ویترین {{ $store['name'] }}"
+                                        class="h-full w-full object-cover"
+                                        width="1200"
+                                        height="800"
+                                        fetchpriority="high"
+                                        decoding="async"
+                                    >
+                                </picture>
                             @endif
                         </div>
-                        @foreach($featuredProducts->take(3) as $i => $product)
-                            <a href="{{ route('products.show', $product->slug) }}" class="home-hero-collage-float home-hero-collage-float-{{ $i + 1 }}" aria-label="{{ $product->name }}">
-                                @if($thumbnailUrl = $product->thumbnailUrl())
-                                    <img src="{{ $thumbnailUrl }}" alt="{{ $product->name }}" class="h-full w-full object-cover" loading="lazy">
-                                @endif
-                            </a>
-                        @endforeach
                     </div>
                 </div>
             </div>

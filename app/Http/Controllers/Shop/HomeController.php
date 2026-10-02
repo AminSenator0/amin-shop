@@ -22,6 +22,7 @@ use App\Support\HomepageContent;
 use App\Support\StoreSettings;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
+use App\Models\HeroBanner;
 
 class HomeController extends Controller
 {
@@ -62,6 +63,7 @@ class HomeController extends Controller
         $sliders = Cache::remember('home_sliders', 1800, fn () =>
             Slider::active()
         );
+                $heroBanners = Cache::remember('home_hero_banners', 1800, fn () => HeroBanner::active());
 
         $banners = Cache::remember('home_banners', 1800, fn () =>
             Banner::active('home')
@@ -215,6 +217,7 @@ class HomeController extends Controller
             'latestProducts',
             'categories',
             'sliders',
+            'heroBanners',
             'banners',
             'bestsellerProducts',
             'discountedProducts',

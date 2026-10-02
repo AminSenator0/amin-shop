@@ -21,6 +21,12 @@ class SecurityHeaders
         // Referrer Policy
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
 
+        // form-action: سایت خودم + درگاه زرین‌پال (سندباکس و واقعی)
+        // چرا زرین‌پال؟ چون فرم POST بعدش 302 به درگاه می‌شه و مرورگر مقصد نهایی رو با form-action چک می‌کنه
+        $appHost = parse_url(config('app.url'), PHP_URL_HOST) ?: $request->getHost();
+        $appPort = parse_url(config('app.url'), PHP_URL_PORT);
+        $appPort = $appPort ? ':'.$appPort : '';
+
         // Content Security Policy
         $csp = "default-src 'self'; " .
                "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " .
@@ -30,7 +36,7 @@ class SecurityHeaders
                "connect-src 'self'; " .
                "frame-ancestors 'none'; " .
                "base-uri 'self'; " .
-               "form-action 'self';";
+               "form-action 'self' http://{$appHost}{$appPort} https://{$appHost}{$appPort} https://*.zarinpal.com;";
 
         $response->headers->set('Content-Security-Policy', $csp);
 

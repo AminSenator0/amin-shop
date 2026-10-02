@@ -34,6 +34,7 @@ class Order extends Model
         'paid_at',
         'c2c_discount',
         'payable',
+        'wallet_amount',
         'shipped_at',
         'delivered_at',
         'admin_read_at',
@@ -48,6 +49,7 @@ class Order extends Model
             'payment_method' => 'string',
             'paid_at' => 'datetime',
             'shipped_at' => 'datetime',
+            'wallet_amount' => 'integer',
             'delivered_at' => 'datetime',
             'admin_read_at' => 'datetime',
         ];
@@ -103,6 +105,26 @@ class Order extends Model
         return 'ORD-'.now()->format('Ymd').'-'.strtoupper(substr(uniqid(), -6));
     }
 
+        /**
+     * مبلغی که باید از درگاه پرداخت شود (پس از کسر سهم کیف پول).
+     *
+     * ⚠️ همیشه سمت سرور محاسبه می‌شود — هرگز به ورودی کاربر اعتماد نمی‌کند.
+     * برای سفارش‌های قدیمی payable=0 → fallback به total
+     */
+    public function gatewayPayable(): int
+    {
+        $base = (int) ($this->payable > 0 ? $this->payable : $this->total);
+
+        return max(0, $base - (int) $this->wallet_amount);
+    }
+
+    /**
+     * آیا سفارش کاملاً با کیف پول پرداخت شده؟
+     */
+    public function isFullyPaidByWallet(): bool
+    {
+        return (int) $this->wallet_amount > 0 && $this->gatewayPayable() === 0;
+    }
     public function canBePaidOnline(): bool
     {
         if (in_array($this->status, [OrderStatus::Cancelled, OrderStatus::Shipped, OrderStatus::Delivered], true)) {

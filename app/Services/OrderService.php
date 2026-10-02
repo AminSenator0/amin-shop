@@ -17,11 +17,15 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use App\Enums\WalletReferenceType;
+use App\Models\Wallet;
 
 class OrderService
 {
-    public function __construct(private SmsService $sms) {}
-
+    public function __construct(
+        private SmsService $sms,
+        private WalletService $wallets,
+    ) {}
     public function pendingActionCount(): int
     {
         return Order::query()
@@ -133,6 +137,41 @@ class OrderService
             'meta' => $meta,
         ]);
     }
+
+    /**
+     * برگشت سهم کیف پول سفارش به کیف پول کاربر.
+     *
+     * - فقط اگر wallet_amount > 0 باشد اجرا می‌شود
+     * - credit با reference (order_refund, order_id) → idempotent (تکرار بی‌اثر)
+     * - بعد از برگشت، wallet_amount صفر می‌شود تا دوبار refund رخ ندهد
+     */
+    public function refundWalletPart(Order $order): void
+    {
+        $amount = (int) $order->wallet_amount;
+
+        if ($amount <= 0) {
+            return;
+        }
+
+        $wallet = Wallet::query()->where('user_id', $order->user_id)->first();
+
+        if (! $wallet) {
+            return;
+        }
+
+        $this->wallets->credit(
+            $wallet,
+            $amount,
+            WalletReferenceType::OrderRefund,
+            $order->id,
+            'برگشت سهم کیف پول سفارش '.$order->order_number
+        );
+
+        $order->update(['wallet_amount' => 0]);
+
+        $this->logActivity($order, 'wallet_refunded', 'سهم کیف پول ('.format_price($amount).') به کیف پول کاربر برگشت.');
+    }
+
 
     public function notifyStatusChange(Order $order, OrderStatus $status, bool $sendSms, bool $sendEmail = false): bool
     {
@@ -293,6 +332,9 @@ class OrderService
             }
 
             $order->update(['status' => OrderStatus::Cancelled]);
+
+            // برگشت سهم کیف پول (idempotent — اگر صفر باشد کاری نمی‌کند)
+            $this->refundWalletPart($order);
         };
 
         if (DB::transactionLevel() > 0) {
@@ -385,6 +427,9 @@ class OrderService
                 $locked->update($updates);
                 $changed = true;
                 $this->logActivity($locked, 'payment_failed', $reason);
+
+                // برگشت سهم کیف پول در صورت شکست پرداخت درگاه
+                $this->refundWalletPart($locked);
             }
         });
 

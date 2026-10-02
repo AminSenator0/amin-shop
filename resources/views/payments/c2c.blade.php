@@ -263,9 +263,22 @@
         <div class="c2c-summary-row">
             <span>مبلغ سفارش</span>
             <strong>{{ number_format($order->total) }} تومان</strong>
-            <div style="color: #10b981; font-size: 13px; margin-bottom: 8px;">
-            تخفیف کارت به کارت: {{ number_format($order->c2c_discount) }} تومان
         </div>
+        @if($order->c2c_discount > 0)
+            <div class="c2c-summary-row" style="color: #10b981;">
+                <span>تخفیف کارت به کارت</span>
+                <strong>{{ number_format($order->c2c_discount) }} تومان</strong>
+            </div>
+        @endif
+        @if($order->wallet_amount > 0)
+            <div class="c2c-summary-row" style="color: #0d9488;">
+                <span>پرداخت‌شده با کیف پول</span>
+                <strong>{{ number_format($order->wallet_amount) }} تومان</strong>
+            </div>
+        @endif
+        <div class="c2c-summary-row" style="font-weight: 900; color: #0f172a;">
+            <span>مابقی قابل پرداخت کارت به کارت</span>
+            <strong>{{ number_format($order->gatewayPayable()) }} تومان</strong>
         </div>
     </div>
 
@@ -284,23 +297,30 @@
                 کپی
             </button>
         </div>
-        <div class="c2c-toman">معادل {{ number_format($order->payable > 0 ? $order->payable : $order->total) }} تومان</div>
+                <div class="c2c-toman">معادل {{ number_format($order->gatewayPayable()) }} تومان</div>
     </div>
 
+    @php($c2cCards = \App\Support\StoreSettings::c2cCards())
     <div class="c2c-cards">
-        <div class="c2c-card">
-            <div class="c2c-card-header">
-                <span>بانک ملت</span>
-                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.288 15.038a5.25 5.25 0 017.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0"/></svg>
+        @forelse($c2cCards as $card)
+            <div class="c2c-card">
+                <div class="c2c-card-header">
+                    <span>{{ $card['bank'] !== '' ? $card['bank'] : 'کارت بانکی' }}</span>
+                    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.288 15.038a5.25 5.25 0 017.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0"/></svg>
+                </div>
+                <div class="c2c-card-number">{{ implode(' ', str_split($card['number'], 4)) }}</div>
+                <div class="c2c-card-footer">
+                    <div class="c2c-card-name">{{ $card['owner'] }}</div>
+                    <button class="c2c-card-copy" onclick="copyToClipboard('{{ $card['number'] }}', this)">کپی کارت</button>
+                </div>
             </div>
-            <div class="c2c-card-number">6104 3373 6026 0150</div>
-            <div class="c2c-card-footer">
-                <div class="c2c-card-name">محمدرضا برجی</div>
-                <button class="c2c-card-copy" onclick="copyToClipboard('6104337360260150', this)">کپی کارت</button>
+        @empty
+            <div class="c2c-alert" style="grid-column: 1 / -1; margin-bottom: 0;">
+                <span style="font-size:22px">⚠️</span>
+                <p><strong>کارت مقصد هنوز توسط مدیر فروشگاه تعریف نشده است.</strong> لطفاً با پشتیبانی تماس بگیرید.</p>
             </div>
-        </div>
+        @endforelse
     </div>
-
     <div class="c2c-action">
         <button class="c2c-btn-main" id="verify-btn" onclick="startChecking()">
             <div class="c2c-spinner" id="spinner"></div>
@@ -327,11 +347,6 @@
         <button class="c2c-btn-modal" id="submitReceiptBtn" onclick="submitReceipt()">ارسال رسید</button>
     </div>
 </div>
-
-@php
-    $latestCheck = $c2c->checks()->latest()->first();
-    $hasActiveCheck = $latestCheck && in_array($latestCheck->status, ['pending', 'checking']);
-@endphp
 
 <script>
     const orderId = {{ $order->id }};
@@ -460,47 +475,6 @@ function showCopiedFeedback(btn) {
         status.innerText = 'خطا در ارسال درخواست. دوباره تلاش کنید.';
         console.error(err);
     });
-}
-
-function startPolling(checkId) {
-    if (window.pollInterval) clearInterval(window.pollInterval);
-    
-    const status = document.getElementById('status-msg');
-    
-    window.pollInterval = setInterval(() => {
-        fetch('{{ url("/c2c/check-status") }}/' + checkId, {
-            method: 'GET',
-            headers: {
-                'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                'Accept': 'application/json'
-            }
-        })
-        .then(r => r.json())
-        .then(data => {
-            if (data.status === 'checking') {
-                status.innerText = 'در حال تطابق اطلاعات واریز...';
-            } else if (data.status === 'pending') {
-                status.innerText = 'در صف انتظار...';
-            } else if (data.status === 'found') {
-                clearInterval(window.pollInterval);
-                status.innerText = '✅ پرداخت تأیید شد! در حال انتقال...';
-                status.style.color = '#10b981';
-                setTimeout(() => {
-                    window.location.href = '{{ route("user.orders.show", $order) }}';
-                }, 1500);
-            } else if (data.status === 'not_found') {
-                clearInterval(window.pollInterval);
-                document.getElementById('verify-btn').disabled = false;
-                document.getElementById('spinner').style.display = 'none';
-                document.getElementById('btn-text').innerText = 'بررسی مجدد';
-                status.innerText = '❌ تراکنش یافت نشد. مطمئن شوید پرداخت را انجام داده‌اید.';
-                status.style.color = '#e11d48';
-            }
-        })
-        .catch(() => {
-            status.innerText = 'خطا در دریافت وضعیت...';
-        });
-    }, 3000);
 }
 
     function startPolling(checkId) {

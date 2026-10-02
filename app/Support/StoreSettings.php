@@ -76,6 +76,8 @@ class StoreSettings
         'zarinpal_sandbox' => '1',
         // پایهٔ URL برای callback (خالی = APP_URL)
         'zarinpal_callback_base_url' => '',
+                // کارت‌های کارت‌به‌کارت (JSON — لیست کارت‌های فروشنده)
+        'c2c_cards' => '[]',
         // پیامک کاوه‌نگار
         'sms_driver' => 'log',
         'sms_mode' => 'simple',
@@ -688,7 +690,45 @@ class StoreSettings
         ];
     }
 
-    /** @return array<string, array{name: string, description: string, primary: string, accent: string}> */
+
+        /**
+     * کارت‌های کارت‌به‌کارت فروشنده (از تنظیمات).
+     *
+     * @return array<int, array{number: string, owner: string, bank: string}>
+     */
+    public static function c2cCards(): array
+    {
+        $stored = self::get('c2c_cards', '[]');
+        $decoded = is_string($stored) ? json_decode($stored, true) : $stored;
+
+        if (! is_array($decoded)) {
+            return [];
+        }
+
+        $cards = [];
+        foreach ($decoded as $card) {
+            if (! is_array($card)) {
+                continue;
+            }
+
+            $number = preg_replace('/\D+/', '', (string) ($card['number'] ?? ''));
+
+            // شماره نامعتبر → نادیده گرفته می‌شود
+            if ($number === '' || strlen($number) < 16) {
+                continue;
+            }
+
+            $cards[] = [
+                'number' => $number,
+                'owner'  => trim((string) ($card['owner'] ?? '')),
+                'bank'   => trim((string) ($card['bank'] ?? '')),
+            ];
+        }
+
+        return $cards;
+    }
+        /** @return array<string, array{name: string, description: string, primary: string, accent: string}> */
+
     public static function colorPresets(): array
     {
         return config('store-theme.presets', []);

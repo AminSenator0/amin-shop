@@ -30,8 +30,10 @@ class C2CPaymentController extends Controller
             $c2c->update(['status' => 'expired']);
         }
 
-        return view('payments.c2c', compact('order', 'c2c'));
-    }
+        $latestCheck = $c2c->checks()->latest()->first();
+        $hasActiveCheck = $latestCheck && in_array($latestCheck->status, ['pending', 'checking']);
+
+        return view('payments.c2c', compact('order', 'c2c', 'latestCheck', 'hasActiveCheck'));    }
 
     /**
      * بررسی وضعیت پرداخت (برای AJAX هر ۵ ثانیه)

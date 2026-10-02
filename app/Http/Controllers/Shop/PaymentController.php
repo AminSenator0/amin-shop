@@ -70,8 +70,7 @@ class PaymentController extends Controller
                 }
 
                 // مبلغ فقط از دیتابیس خوانده می‌شود — پارامترهای callback قابل اعتماد نیستند
-                $result = $this->zarinpal->verifyPayment($authority, (int) $order->total);
-
+                $result = $this->zarinpal->verifyPayment($authority, (int) $order->gatewayPayable());
                 $order->update([
                     'payment_status' => PaymentStatus::Paid,
                     'status' => OrderStatus::Paid,

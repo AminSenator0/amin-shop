@@ -70,6 +70,26 @@ class StoreSettingsController extends Controller
                 'string'
             );
 
+                        // کارت‌های کارت‌به‌کارت: نرمالایز + ذخیره JSON
+            $c2cCards = [];
+            foreach (($validated['c2c_cards'] ?? []) as $card) {
+                $number = preg_replace('/\D+/', '', (string) ($card['number'] ?? ''));
+                if ($number === '' || strlen($number) < 16) {
+                    continue;
+                }
+                $c2cCards[] = [
+                    'number' => $number,
+                    'owner'  => trim((string) ($card['owner'] ?? '')),
+                    'bank'   => trim((string) ($card['bank'] ?? '')),
+                ];
+            }
+            StoreSetting::set(
+                'c2c_cards',
+                json_encode(array_values($c2cCards), JSON_UNESCAPED_UNICODE),
+                'payment',
+                'json'
+            );
+            
             $smsDriver = $validated['sms_driver'] ?? 'log';
             StoreSetting::set('sms_driver', $smsDriver, 'sms', 'string');
             StoreSetting::set('sms_mode', $validated['sms_mode'] ?? 'simple', 'sms', 'string');

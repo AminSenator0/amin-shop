@@ -85,6 +85,7 @@ class CheckoutPriceSecurityTest extends TestCase
         $this->post(route('checkout.store'), [
             'address_id' => $this->address->id,
             'shipping_method_id' => $this->shippingPaid->id,
+            'payment_method' => 'online',
             'total' => 1,
             'subtotal' => 1,
             'shipping_cost' => 0,
@@ -108,6 +109,7 @@ class CheckoutPriceSecurityTest extends TestCase
         $this->post(route('checkout.store'), [
             'address_id' => $this->address->id,
             'shipping_method_id' => $this->shippingPaid->id,
+            'payment_method' => 'online',
             'notes' => 'ok',
         ])->assertRedirect();
 
@@ -133,6 +135,7 @@ class CheckoutPriceSecurityTest extends TestCase
         $this->post(route('checkout.store'), [
             'address_id' => $this->address->id,
             'shipping_method_id' => $this->shippingFree->id,
+            'payment_method' => 'online',
         ])->assertSessionHasErrors('shipping_method_id');
 
         $this->assertSame(0, Order::count());
@@ -157,6 +160,7 @@ class CheckoutPriceSecurityTest extends TestCase
         $this->post(route('checkout.store'), [
             'address_id' => $foreignAddress->id,
             'shipping_method_id' => $this->shippingPaid->id,
+            'payment_method' => 'online',
         ])->assertSessionHasErrors('address_id');
 
         $this->assertSame(0, Order::count());
@@ -181,6 +185,7 @@ class CheckoutPriceSecurityTest extends TestCase
         $this->post(route('checkout.store'), [
             'address_id' => $this->address->id,
             'shipping_method_id' => $this->shippingPaid->id,
+            'payment_method' => 'online',
         ])->assertRedirect();
 
         $order = Order::first();
@@ -198,6 +203,7 @@ class CheckoutPriceSecurityTest extends TestCase
         $this->post(route('checkout.store'), [
             'address_id' => $this->address->id,
             'shipping_method_id' => $this->shippingPaid->id,
+            'payment_method' => 'online',
         ])->assertRedirect();
 
         $order = Order::first();
@@ -225,6 +231,7 @@ class CheckoutPriceSecurityTest extends TestCase
         $this->post(route('checkout.store'), [
             'address_id' => $this->address->id,
             'shipping_method_id' => $this->shippingPaid->id,
+            'payment_method' => 'online',
         ])->assertRedirect();
 
         $order = Order::first();
@@ -254,6 +261,7 @@ class CheckoutPriceSecurityTest extends TestCase
         $this->post(route('checkout.store'), [
             'address_id' => $this->address->id,
             'shipping_method_id' => $this->shippingPaid->id,
+            'payment_method' => 'online',
         ])->assertRedirect();
 
         $order = Order::first();
@@ -279,6 +287,7 @@ class CheckoutPriceSecurityTest extends TestCase
         $this->post(route('checkout.store'), [
             'address_id' => $this->address->id,
             'shipping_method_id' => $this->shippingPaid->id,
+            'payment_method' => 'online',
         ])->assertRedirect();
 
         $order = Order::first();
@@ -301,12 +310,14 @@ class CheckoutPriceSecurityTest extends TestCase
         $this->post(route('checkout.store'), [
             'address_id' => $this->address->id,
             'shipping_method_id' => $shipping->id,
+            'payment_method' => 'online',
             'shipping_cost' => 0,
         ])->assertSessionHasErrors('shipping_cost');
 
         $this->post(route('checkout.store'), [
             'address_id' => $this->address->id,
             'shipping_method_id' => $shipping->id,
+            'payment_method' => 'online',
         ])->assertRedirect();
 
         $order = Order::first();
@@ -328,6 +339,7 @@ class CheckoutPriceSecurityTest extends TestCase
         $this->post(route('checkout.store'), [
             'address_id' => $this->address->id,
             'shipping_method_id' => $shipping->id,
+            'payment_method' => 'online',
         ])->assertRedirect();
 
         $order = Order::first();
@@ -343,7 +355,8 @@ class CheckoutPriceSecurityTest extends TestCase
         $this->post(route('checkout.store'), [
             'address_id' => $this->address->id,
             'shipping_method_id' => $this->shippingPaid->id,
-        ])->assertRedirect(route('user.cart.index'));
+            'payment_method' => 'online',
+        ])->assertRedirect(route('cart.index'));
 
         $this->assertSame(0, Order::count());
     }
@@ -355,6 +368,7 @@ class CheckoutPriceSecurityTest extends TestCase
         $this->post(route('checkout.store'), [
             'address_id' => $this->address->id,
             'shipping_method_id' => $this->shippingPaid->id,
+            'payment_method' => 'online',
         ])->assertRedirect();
 
         $order = Order::first();

@@ -56,6 +56,10 @@ class User extends Authenticatable
         ];
     }
 
+    public function wallet(): \Illuminate\Database\Eloquent\Relations\HasOne
+{
+    return $this->hasOne(Wallet::class);
+}
     public function isAdmin(): bool
     {
         return $this->role === UserRole::Admin;

@@ -131,6 +131,8 @@ class AppServiceProvider extends ServiceProvider
                     )->count(),
                     // ← جدید: بج‌های سایدبار
                     'pendingC2cCount' => \App\Models\C2CPayment::whereIn('status', ['pending', 'receipt_uploaded'])->count(),
+                    'pendingWalletDepositsCount' => \App\Models\WalletDeposit::pending()->count(),
+                    'pendingWalletWithdrawalsCount' => \App\Models\WalletWithdrawal::pending()->count(),
                     'mySessionsCount' => Auth::user()
                         ? \App\Models\AccountSession::where('user_id', Auth::user()->id)->count()
                         : 0,

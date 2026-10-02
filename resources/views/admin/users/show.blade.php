@@ -20,7 +20,7 @@
     @endif
 </div>
 
-<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5 mb-6">
     <x-admin.stat-card label="تعداد سفارش" :value="$user->orders_count" color="blue"
         icon='<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>' />
     <x-admin.stat-card label="مجموع خرید" :value="format_price($totalSpent)" color="emerald"
@@ -29,6 +29,9 @@
         icon='<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>' />
     <x-admin.stat-card label="نظرات" :value="$user->reviews_count" color="amber"
         icon='<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>' />
+    {{-- ⬇️ کارت کیف پول ⬇️ --}}
+    <x-admin.stat-card label="موجودی کیف پول" :value="format_price($walletBalance)" color="teal"
+        icon='<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>' />
 </div>
 
 <div class="grid gap-6 lg:grid-cols-3 mb-6">
@@ -105,6 +108,94 @@
             </div>
         </div>
     </form>
+
+    {{-- ⬇️ کارت کیف پول ⬇️ --}}
+    <div class="admin-card" x-data="{ showAdjust: false }">
+        <div class="admin-card-header">
+            <h2 class="admin-card-title flex items-center gap-2">
+                <svg class="h-4 w-4 shrink-0 text-teal-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+                <span>کیف پول</span>
+            </h2>
+            <span class="text-sm font-bold text-teal-600">{{ format_price($walletBalance) }}</span>
+        </div>
+
+        <div class="p-5 space-y-5">
+            {{-- موجودی فعلی --}}
+            <div class="flex items-center justify-between rounded-2xl border border-teal-100 bg-teal-50/50 p-4">
+                <div>
+                    <p class="text-xs text-teal-600 font-medium">موجودی فعلی</p>
+                    <p class="text-2xl font-black text-teal-700 mt-1">{{ format_price($walletBalance) }}</p>
+                </div>
+                <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-teal-100 text-teal-600">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+                </div>
+            </div>
+
+            {{-- ۱۰ تراکنش آخر --}}
+            @if($wallet && $wallet->transactions->isNotEmpty())
+                <div class="overflow-x-auto">
+                    <table class="admin-table text-sm">
+                        <thead>
+                            <tr>
+                                <th>نوع</th>
+                                <th>مبلغ</th>
+                                <th>موجودی بعد</th>
+                                <th>دلیل</th>
+                                <th>تاریخ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($wallet->transactions as $tx)
+                                <tr>
+                                    <td>
+                                        @if($tx->type->value === 'credit')
+                                            <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-600">واریز</span>
+                                        @else
+                                            <span class="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-xs font-bold text-rose-600">برداشت</span>
+                                        @endif
+                                    </td>
+                                    <td class="font-bold">{{ format_price($tx->amount) }}</td>
+                                    <td class="text-zinc-500">{{ format_price($tx->balance_after) }}</td>
+                                    <td class="text-zinc-500 truncate max-w-[120px]" title="{{ $tx->description }}">{{ $tx->description ?: '—' }}</td>
+                                    <td class="text-zinc-400 text-xs whitespace-nowrap">{{ format_jalali($tx->created_at) }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @else
+                <div class="text-center py-6 text-zinc-400 text-sm">تراکنشی ثبت نشده</div>
+            @endif
+
+            {{-- دکمه‌ی تنظیم دستی --}}
+            <button type="button" @click="showAdjust = !showAdjust" class="admin-btn-secondary w-full text-xs">
+                <span x-text="showAdjust ? 'بستن فرم' : 'تنظیم دستی موجودی'"></span>
+            </button>
+
+            {{-- فرم تنظیم دستی --}}
+            <form x-show="showAdjust" x-cloak method="POST" action="{{ route('admin.users.wallet.adjust', $user) }}" class="space-y-4 border-t border-zinc-100 pt-4">
+                @csrf
+                <div>
+                    <label class="admin-field-label">مبلغ (تومان) <span class="text-rose-500">*</span></label>
+                    <input type="number" name="amount" value="{{ old('amount') }}" required
+                        class="admin-input w-full" dir="ltr"
+                        placeholder="مثبت = واریز | منفی = برداشت">
+                    <p class="text-xs text-zinc-400 mt-1">عدد مثبت = واریز به کیف پول | عدد منفی = کسر از کیف پول</p>
+                    {{-- ⬇️ خطای amount ⬇️ --}}
+                    @error('amount')<p class="admin-field-error">{{ $message }}</p>@enderror
+                </div>
+                <div>
+                    <label class="admin-field-label">دلیل <span class="text-rose-500">*</span></label>
+                    <input type="text" name="reason" value="{{ old('reason') }}" required
+                        class="admin-input w-full"
+                        placeholder="مثلاً: اصلاح اشتباه سیستمی">
+                    {{-- ⬇️ خطای reason ⬇️ --}}
+                    @error('reason')<p class="admin-field-error">{{ $message }}</p>@enderror
+                </div>
+                <button type="submit" class="admin-btn-primary w-full text-xs">اعمال تراکنش</button>
+            </form>
+        </div>
+    </div>
 
     <div class="admin-card lg:col-span-2">
         <div class="admin-card-header">

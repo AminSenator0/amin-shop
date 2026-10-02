@@ -34,7 +34,7 @@ class StoreSettingsSeeder extends Seeder
                 'homepage_size_guide_enabled', 'homepage_sticky_nav_enabled', 'newsletter_incentive_text',
             ],
             'payment' => [
-                'zarinpal_merchant_id', 'zarinpal_sandbox', 'zarinpal_callback_base_url',
+                'zarinpal_merchant_id', 'zarinpal_sandbox', 'zarinpal_callback_base_url', 'c2c_cards',
             ],
             'sms' => [
                 'sms_driver', 'sms_mode', 'sms_kavenegar_api_key', 'sms_kavenegar_sender',
@@ -77,9 +77,24 @@ class StoreSettingsSeeder extends Seeder
                     $value = json_encode(StoreSettings::trustBadges(), JSON_UNESCAPED_UNICODE);
                     $type = 'json';
                 }
+                                if ($key === 'c2c_cards') {
+                    $value = '[]';
+                    $type = 'json';
+                }
 
                 StoreSetting::set($key, $value, $group, $type);
             }
+        }
+
+        // ⬇️⬇️⬇️ تنظیمات کیف پول ⬇️⬇️⬇️
+        if (! StoreSetting::where('key', 'wallet_min_deposit')->exists()) {
+            StoreSetting::set('wallet_min_deposit', '50000', 'payment', 'integer');
+        }
+        if (! StoreSetting::where('key', 'wallet_max_deposit')->exists()) {
+            StoreSetting::set('wallet_max_deposit', '100000000', 'payment', 'integer');
+        }
+        if (! StoreSetting::where('key', 'wallet_min_withdrawal')->exists()) {
+            StoreSetting::set('wallet_min_withdrawal', '200000', 'payment', 'integer');
         }
     }
 }

@@ -229,11 +229,11 @@
             </p>
         @endif
 
-        @if (Route::has('admin.login'))
+        <!-- @if (Route::has('admin.login'))
             <p class="text-center text-sm text-shop-muted">
                 مدیر هستید؟
                 <a href="{{ route('admin.login') }}" class="font-bold text-shop-primary hover:text-shop-accent">ورود به پنل مدیریت</a>
             </p>
-        @endif
+        @endif -->
     </div>
 </x-guest-layout>

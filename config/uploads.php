@@ -82,6 +82,37 @@ return [
             ],
         ],
 
+
+        'hero-banner' => [
+            'directory' => 'hero-banners',
+            'mimes' => ['jpeg', 'jpg', 'png', 'webp'],
+            'max_size_kb' => 4096,
+            'max_width' => 4000,
+            'max_height' => 4000,
+            'resize' => [
+                'width' => 1600,
+                'height' => 1067,
+                'fit' => 'cover',
+                'format' => 'webp',
+                'quality' => 85,
+            ],
+        ],
+
+                'footer-license' => [
+            'directory' => 'footer-licenses',
+            'mimes' => ['jpeg', 'jpg', 'png', 'webp', 'gif', 'svg'],
+            'max_size_kb' => 2048,
+            'max_width' => 2000,
+            'max_height' => 2000,
+            'resize' => [
+                'width' => 400,
+                'height' => 400,
+                'fit' => 'contain',
+                'format' => 'png',
+                'quality' => 90,
+            ],
+        ],
+
         'enamad_image' => [
             'directory' => 'store',
             'mimes' => ['jpeg', 'jpg', 'png', 'webp'],

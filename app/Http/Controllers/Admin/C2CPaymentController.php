@@ -71,7 +71,10 @@ class C2CPaymentController extends Controller
             'payment_status' => \App\Enums\PaymentStatus::Failed,
             'status' => \App\Enums\OrderStatus::Cancelled,
         ]);
-    
+
+        // برگشت سهم کیف پول (اگر کاربر بخشی را با کیف پول پرداخت کرده بود)
+        app(\App\Services\OrderService::class)->refundWalletPart($payment->order);
+
         return back()->with('success', 'پرداخت رد و سفارش لغو شد.');
     }
 }

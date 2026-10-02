@@ -464,6 +464,85 @@
                     <li>برای حالت واقعی، دامنهٔ بالا را در پنل زرین‌پال ثبت کنید؛ بعداً با تغییر همین فیلد در ادمین، callback هم عوض می‌شود.</li>
                 </ul>
             </div>
+
+            {{-- ───────────── کارت‌های کارت‌به‌کارت ───────────── --}}
+            @php
+                $c2cCards = old('c2c_cards', $settings['c2c_cards'] ?? '[]');
+                if (is_string($c2cCards)) {
+                    $c2cCards = json_decode($c2cCards, true) ?: [];
+                }
+                $c2cCards = array_values(array_filter($c2cCards, fn ($c) => is_array($c) && trim((string) ($c['number'] ?? '')) !== ''));
+                if ($c2cCards === []) {
+                    $c2cCards = [['number' => '', 'owner' => '', 'bank' => '']];
+                }
+            @endphp
+
+            <div class="admin-slider-panel-head !mt-6">
+                <div class="admin-slider-panel-icon">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M3.75 5.25h16.5A1.5 1.5 0 0121.75 6.75v10.5a1.5 1.5 0 01-1.5 1.5H3.75a1.5 1.5 0 01-1.5-1.5V6.75a1.5 1.5 0 011.5-1.5z"/></svg>
+                </div>
+                <div>
+                    <p class="admin-slider-panel-title">کارت‌های کارت‌به‌کارت</p>
+                    <p class="admin-slider-panel-desc">این کارت‌ها در صفحه پرداخت کارت‌به‌کارت سفارش و شارژ کیف پول نمایش داده می‌شوند</p>
+                </div>
+            </div>
+
+            <div x-data="{ cards: @js($c2cCards) }" class="space-y-3">
+                <template x-for="(card, index) in cards" :key="index">
+                    <div class="grid items-end gap-2 rounded-xl border border-zinc-200 bg-zinc-50/60 p-3 sm:grid-cols-[1fr_1fr_140px_auto]">
+                        <div>
+                            <label class="admin-field-label">شماره کارت <span class="text-rose-500">*</span></label>
+                            <input type="text"
+                                   :name="`c2c_cards[${index}][number]`"
+                                   x-model="card.number"
+                                   class="admin-input w-full text-left"
+                                   dir="ltr"
+                                   maxlength="19"
+                                   inputmode="numeric"
+                                   placeholder="6104337360260150">
+                        </div>
+                        <div>
+                            <label class="admin-field-label">نام صاحب کارت <span class="text-rose-500">*</span></label>
+                            <input type="text"
+                                   :name="`c2c_cards[${index}][owner]`"
+                                   x-model="card.owner"
+                                   class="admin-input w-full"
+                                   placeholder="مثلاً: محمدرضا برجی">
+                        </div>
+                        <div>
+                            <label class="admin-field-label">بانک</label>
+                            <input type="text"
+                                   :name="`c2c_cards[${index}][bank]`"
+                                   x-model="card.bank"
+                                   class="admin-input w-full"
+                                   placeholder="ملت">
+                        </div>
+                        <button type="button"
+                                @click="cards.splice(index, 1)"
+                                x-show="cards.length > 1"
+                                x-cloak
+                                class="admin-btn-secondary !px-3 text-xs !text-rose-600 hover:!border-rose-300">
+                            حذف
+                        </button>
+                    </div>
+                </template>
+
+                <div class="flex flex-wrap items-center gap-3">
+                    <button type="button"
+                            @click="cards.push({ number: '', owner: '', bank: '' })"
+                            class="admin-btn-secondary text-xs">
+                        + افزودن کارت جدید
+                    </button>
+                    <span class="text-xs text-zinc-400">حداکثر ۱۰ کارت</span>
+                </div>
+
+                @error('c2c_cards.*.number')
+                    <p class="admin-field-error">شماره کارت‌ها باید فقط عدد باشد (۱۶ رقم).</p>
+                @enderror
+                @error('c2c_cards.*.owner')
+                    <p class="admin-field-error">نام صاحب کارت برای همه کارت‌ها الزامی است.</p>
+                @enderror
+            </div>
         </div>
 
         {{-- پیامک --}}
