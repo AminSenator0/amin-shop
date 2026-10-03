@@ -22,84 +22,95 @@ class AnalyticsService
     public const PERIODS = ['all', 'today', 'week', 'month'];
 
     // ═══════════════════════════════════════════════════════════
-    //  تب ۱ — نمودار بازدیدها
+    //  تب ۱ — نمودار بازدیدها (بر اساس بازه تاریخی)
     // ═══════════════════════════════════════════════════════════
 
-    /** خلاصه کارت‌های بالای صفحه */
-    public function visitsSummary(int $days = self::VISITS_DAYS): array
+    /** خلاصه کارت‌های بالای صفحه — روی بازه انتخاب‌شده */
+    public function visitsSummary(Carbon $from, Carbon $to): array
     {
-        return Cache::remember("admin.analytics.visits.summary.{$days}", now()->addMinutes(5), function () use ($days) {
-            $today = today();
+        $key = "admin.analytics.visits.summary.{$from->toDateString()}.{$to->toDateString()}";
 
-            $pageViewsToday = (int) SiteVisit::query()
-                ->whereDate('visit_date', $today)
+        return Cache::remember($key, now()->addMinutes(5), function () use ($from, $to) {
+            $days = max(1, $from->diffInDays($to) + 1);
+
+            $pageViewsTotal = (int) SiteVisit::query()
+                ->whereBetween('visit_date', [$from->toDateString(), $to->toDateString()])
                 ->sum('page_views');
 
-            $uniquesToday = SiteVisit::query()
-                ->whereDate('visit_date', $today)
+            $uniquesTotal = SiteVisit::query()
+                ->whereBetween('visit_date', [$from->toDateString(), $to->toDateString()])
                 ->count();
 
-            $from = $today->copy()->subDays($days - 1)->startOfDay();
-
-            $avgPageViews = (int) round(SiteVisit::query()
-                ->where('visit_date', '>=', $from->toDateString())
-                ->sum('page_views') / $days);
-
-            $avgUniques = (int) round(SiteVisit::query()
-                ->where('visit_date', '>=', $from->toDateString())
-                ->count() / $days);
-
             return [
-                'page_views_today' => $pageViewsToday,
-                'uniques_today' => $uniquesToday,
-                'avg_page_views' => $avgPageViews,
-                'avg_uniques' => $avgUniques,
+                'page_views_total' => $pageViewsTotal,
+                'uniques_total'    => $uniquesTotal,
+                'avg_page_views'   => (int) round($pageViewsTotal / $days),
+                'avg_uniques'      => (int) round($uniquesTotal / $days),
+                'days'             => $days,
             ];
         });
     }
 
-    /** نمودار خطی: بازدید صفحه — N روز اخیر */
-    public function pageViewsChart(int $days = self::VISITS_DAYS): Collection
+    /** نمودار خطی: بازدید صفحه */
+    public function pageViewsChart(Carbon $from, Carbon $to): Collection
     {
-        return Cache::remember("admin.analytics.page_views.{$days}", now()->addMinutes(5), function () use ($days) {
+        $key = "admin.analytics.page_views.{$from->toDateString()}.{$to->toDateString()}";
+
+        return Cache::remember($key, now()->addMinutes(5), function () use ($from, $to) {
             $counts = SiteVisit::query()
                 ->selectRaw('visit_date, SUM(page_views) as total')
-                ->where('visit_date', '>=', today()->subDays($days - 1)->toDateString())
+                ->whereBetween('visit_date', [$from->toDateString(), $to->toDateString()])
                 ->groupBy('visit_date')
                 ->pluck('total', 'visit_date');
 
-            return $this->dailySeries($days, $counts);
+            return $this->dailySeries($from, $to, $counts);
         });
     }
 
-    /** نمودار خطی: بازدید یکتا — N روز اخیر */
-    public function uniqueVisitorsChart(int $days = self::VISITS_DAYS): Collection
+    /** نمودار خطی: بازدید یکتا */
+    public function uniqueVisitorsChart(Carbon $from, Carbon $to): Collection
     {
-        return Cache::remember("admin.analytics.uniques.{$days}", now()->addMinutes(5), function () use ($days) {
+        $key = "admin.analytics.uniques.{$from->toDateString()}.{$to->toDateString()}";
+
+        return Cache::remember($key, now()->addMinutes(5), function () use ($from, $to) {
             $counts = SiteVisit::query()
                 ->selectRaw('visit_date, COUNT(*) as total')
-                ->where('visit_date', '>=', today()->subDays($days - 1)->toDateString())
+                ->whereBetween('visit_date', [$from->toDateString(), $to->toDateString()])
                 ->groupBy('visit_date')
                 ->pluck('total', 'visit_date');
 
-            return $this->dailySeries($days, $counts);
+            return $this->dailySeries($from, $to, $counts);
         });
     }
 
     /** نمودار دایره‌ای: سیستم‌عامل کاربران */
-    public function osStats(int $days = self::VISITS_DAYS): Collection
+    public function osStats(Carbon $from, Carbon $to): Collection
     {
-        return Cache::remember("admin.analytics.os.{$days}", now()->addMinutes(5), function () use ($days) {
-            return $this->dimensionStats('os', $days);
+        $key = "admin.analytics.os.{$from->toDateString()}.{$to->toDateString()}";
+
+        return Cache::remember($key, now()->addMinutes(5), function () use ($from, $to) {
+            return $this->dimensionStats('os', $from, $to);
         });
     }
 
     /** نمودار دایره‌ای: مرورگر کاربران */
-    public function browserStats(int $days = self::VISITS_DAYS): Collection
+    public function browserStats(Carbon $from, Carbon $to): Collection
     {
-        return Cache::remember("admin.analytics.browser.{$days}", now()->addMinutes(5), function () use ($days) {
-            return $this->dimensionStats('browser', $days);
+        $key = "admin.analytics.browser.{$from->toDateString()}.{$to->toDateString()}";
+
+        return Cache::remember($key, now()->addMinutes(5), function () use ($from, $to) {
+            return $this->dimensionStats('browser', $from, $to);
         });
+    }
+
+    /** اولین تاریخی که بازدید ثبت شده (برای بازه «از ابتدا») */
+    public function firstVisitDate(): ?Carbon
+    {
+        $min = Cache::remember('admin.analytics.first_visit', now()->addHour(), function () {
+            return SiteVisit::query()->min('visit_date');
+        });
+
+        return $min ? Carbon::parse($min) : null;
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -182,24 +193,26 @@ class AnalyticsService
     // ═══════════════════════════════════════════════════════════
 
     /** ساخت سری روزانه با مقادیر صفر برای روزهای بدون داده */
-    private function dailySeries(int $days, Collection $counts): Collection
+    private function dailySeries(Carbon $from, Carbon $to, Collection $counts): Collection
     {
-        return collect(range($days - 1, 0))->map(function (int $daysAgo) use ($counts) {
-            $date = today()->subDays($daysAgo);
+        $result = collect();
 
-            return [
+        for ($date = $from->copy(); $date->lte($to); $date->addDay()) {
+            $result->push([
                 'label' => format_jalali($date, 'm/d', false),
                 'value' => (int) ($counts[$date->toDateString()] ?? 0),
-            ];
-        })->values();
+            ]);
+        }
+
+        return $result->values();
     }
 
     /** آمار یک بُعد (os / browser) بر اساس بازدید یکتا */
-    private function dimensionStats(string $column, int $days): Collection
+    private function dimensionStats(string $column, Carbon $from, Carbon $to): Collection
     {
         return SiteVisit::query()
             ->selectRaw("COALESCE({$column}, 'نامشخص') as label, COUNT(*) as value")
-            ->where('visit_date', '>=', today()->subDays($days - 1)->toDateString())
+            ->whereBetween('visit_date', [$from->toDateString(), $to->toDateString()])
             ->groupBy($column)
             ->orderByDesc('value')
             ->get()

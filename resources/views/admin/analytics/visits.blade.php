@@ -8,6 +8,16 @@
 @endpush
 
 @section('content')
+    @php
+        $presets = [
+            'today' => 'روزانه',
+            'week'  => 'هفته‌ای',
+            '15'    => '۱۵ روزه',
+            '30'    => '۳۰ روزه',
+            'all'   => 'از ابتدا',
+        ];
+    @endphp
+
     <div dir="rtl" class="space-y-6">
 
         {{-- ─── سربرگ صفحه ─────────────────────────────────── --}}
@@ -47,7 +57,7 @@
                             گزارش بازدیدها
                         </p>
                         <p class="mt-0.5 text-[11px] text-zinc-400">
-                            اطلاعات ۱۵ روز اخیر
+                            اطلاعات {{ $rangeTitle }}
                         </p>
                     </div>
                 </div>
@@ -57,21 +67,74 @@
         {{-- ─── تب‌های آمار ─────────────────────────────────── --}}
         @include('admin.analytics._tabs')
 
+        {{-- ─── فیلتر بازه زمانی ─────────────────────────────── --}}
+        <div class="rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm sm:p-5">
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="ml-1 text-xs font-bold text-zinc-500">بازه گزارش:</span>
+
+                @foreach($presets as $key => $label)
+                    <a href="{{ route('admin.analytics.visits', ['range' => $key]) }}"
+                       class="rounded-xl border px-4 py-2 text-xs font-bold transition
+                       {{ $rangeKey === $key
+                            ? 'border-indigo-500 bg-indigo-50 text-indigo-700 ring-2 ring-indigo-500/10'
+                            : 'border-zinc-200 bg-white text-zinc-600 hover:border-indigo-300 hover:bg-indigo-50/50' }}">
+                        {{ $label }}
+                    </a>
+                @endforeach
+
+                <span class="rounded-xl border px-4 py-2 text-xs font-bold transition
+                       {{ $rangeKey === 'custom'
+                            ? 'border-indigo-500 bg-indigo-50 text-indigo-700 ring-2 ring-indigo-500/10'
+                            : 'border-dashed border-zinc-300 bg-white text-zinc-500' }}">
+                    تاریخ شمسی
+                </span>
+            </div>
+
+            {{-- فرم تاریخ شمسی سفارشی — همیشه نمایش داده می‌شود (شفافیت کامل) --}}
+            <form method="GET" action="{{ route('admin.analytics.visits') }}"
+                  class="mt-3 flex flex-wrap items-end gap-3 border-t border-dashed border-zinc-200 pt-4">
+                <input type="hidden" name="range" value="custom">
+
+                <div>
+                    <label class="mb-1 block text-[11px] font-bold text-zinc-500">از تاریخ (شمسی)</label>
+                    <input type="text" name="from" value="{{ request('from') }}"
+                           placeholder="1403/07/01"
+                           dir="ltr"
+                           class="admin-input w-36 text-center text-sm">
+                </div>
+
+                <div>
+                    <label class="mb-1 block text-[11px] font-bold text-zinc-500">تا تاریخ (شمسی)</label>
+                    <input type="text" name="to" value="{{ request('to') }}"
+                           placeholder="1403/07/30"
+                           dir="ltr"
+                           class="admin-input w-36 text-center text-sm">
+                </div>
+
+                <button type="submit" class="admin-btn-primary text-xs">اعمال بازه</button>
+
+                @if($rangeKey === 'custom')
+                    <span class="text-xs font-bold text-indigo-600">✓ بازه فعال: {{ $rangeTitle }}</span>
+                @else
+                    <span class="text-xs text-zinc-400">فرمت: 1403/07/01 — خالی بماند: تا امروز</span>
+                @endif
+            </form>
+        </div>
 
         {{-- ─── کارت‌های خلاصه ─────────────────────────────── --}}
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
 
             <x-admin.stat-card
-                label="بازدید صفحه امروز"
-                :value="$summary['page_views_today']"
+                label="مجموع بازدید صفحه"
+                :value="$summary['page_views_total']"
                 color="emerald"
-                subtext="مجموع بازدید همه صفحات از ابتدای امروز"
+                :subtext="'مجموع بازدید همه صفحات در '.$rangeTitle"
                 icon='<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>'
             />
 
             <x-admin.stat-card
-                label="بازدید یکتای امروز"
-                :value="$summary['uniques_today']"
+                label="مجموع بازدید یکتا"
+                :value="$summary['uniques_total']"
                 color="blue"
                 subtext="کاربران یکتا بر اساس IP و مرورگر"
                 icon='<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" /></svg>'
@@ -81,7 +144,7 @@
                 label="میانگین بازدید صفحه روزانه"
                 :value="$summary['avg_page_views']"
                 color="violet"
-                subtext="میانگین روزانه در ۱۵ روز اخیر"
+                :subtext="'میانگین روزانه در '.$rangeTitle"
                 icon='<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25c-.621 0-1.125-.504-1.125-1.125V4.125z" /></svg>'
             />
 
@@ -89,7 +152,7 @@
                 label="میانگین بازدید یکتا روزانه"
                 :value="$summary['avg_uniques']"
                 color="amber"
-                subtext="میانگین روزانه در ۱۵ روز اخیر"
+                :subtext="'میانگین روزانه در '.$rangeTitle"
                 icon='<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75" /></svg>'
             />
 
@@ -105,13 +168,8 @@
                 <div class="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 px-5 py-5 sm:px-6">
                     <div class="flex items-center gap-3">
                         <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-                            <svg class="h-5 w-5"
-                                 fill="none"
-                                 viewBox="0 0 24 24"
-                                 stroke="currentColor"
-                                 stroke-width="1.8">
-                                <path stroke-linecap="round" stroke-linejoin="round"
-                                      d="M3 3v18h18M7 14l4-4 4 4 6-7"/>
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 3v18h18M7 14l4-4 4 4 6-7"/>
                             </svg>
                         </div>
 
@@ -126,7 +184,7 @@
                     </div>
 
                     <span class="rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">
-                        ۱۵ روز اخیر
+                        {{ $rangeTitle }}
                     </span>
                 </div>
 
@@ -135,7 +193,7 @@
                         <canvas
                             id="pageViewsChart"
                             role="img"
-                            aria-label="نمودار بازدید صفحه در ۱۵ روز اخیر"
+                            aria-label="نمودار بازدید صفحه"
                             data-chart="{{ json_encode([
                                 'labels' => $pageViews->pluck('label'),
                                 'values' => $pageViews->pluck('value'),
@@ -159,13 +217,8 @@
                 <div class="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 px-5 py-5 sm:px-6">
                     <div class="flex items-center gap-3">
                         <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                            <svg class="h-5 w-5"
-                                 fill="none"
-                                 viewBox="0 0 24 24"
-                                 stroke="currentColor"
-                                 stroke-width="1.8">
-                                <path stroke-linecap="round" stroke-linejoin="round"
-                                      d="M16 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2m16 0v-2a4 4 0 00-3-3.87M14 3.13a4 4 0 010 7.75M14 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M16 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2m16 0v-2a4 4 0 00-3-3.87M14 3.13a4 4 0 010 7.75M14 7a4 4 0 11-8 0 4 4 0 018 0z"/>
                             </svg>
                         </div>
 
@@ -180,7 +233,7 @@
                     </div>
 
                     <span class="rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">
-                        ۱۵ روز اخیر
+                        {{ $rangeTitle }}
                     </span>
                 </div>
 
@@ -189,7 +242,7 @@
                         <canvas
                             id="uniqueVisitorsChart"
                             role="img"
-                            aria-label="نمودار بازدیدکنندگان یکتا در ۱۵ روز اخیر"
+                            aria-label="نمودار بازدیدکنندگان یکتا"
                             data-chart="{{ json_encode([
                                 'labels' => $uniqueVisitors->pluck('label'),
                                 'values' => $uniqueVisitors->pluck('value'),
@@ -218,11 +271,7 @@
                 <div class="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 px-5 py-5 sm:px-6">
                     <div class="flex items-center gap-3">
                         <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
-                            <svg class="h-5 w-5"
-                                 fill="none"
-                                 viewBox="0 0 24 24"
-                                 stroke="currentColor"
-                                 stroke-width="1.8">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                                 <rect x="3" y="4" width="18" height="13" rx="2"/>
                                 <path stroke-linecap="round" d="M8 21h8m-4-4v4"/>
                             </svg>
@@ -239,7 +288,7 @@
                     </div>
 
                     <span class="rounded-full border border-violet-100 bg-violet-50 px-3 py-1.5 text-xs font-bold text-violet-700">
-                        ۱۵ روز اخیر
+                        {{ $rangeTitle }}
                     </span>
                 </div>
 
@@ -274,11 +323,7 @@
                 <div class="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 px-5 py-5 sm:px-6">
                     <div class="flex items-center gap-3">
                         <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-sky-50 text-sky-600">
-                            <svg class="h-5 w-5"
-                                 fill="none"
-                                 viewBox="0 0 24 24"
-                                 stroke="currentColor"
-                                 stroke-width="1.8">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                                 <circle cx="12" cy="12" r="9"/>
                                 <circle cx="12" cy="12" r="3"/>
                                 <path stroke-linecap="round" d="M12 3v6m9 3h-6M12 21v-6M3 12h6"/>
@@ -296,7 +341,7 @@
                     </div>
 
                     <span class="rounded-full border border-sky-100 bg-sky-50 px-3 py-1.5 text-xs font-bold text-sky-700">
-                        ۱۵ روز اخیر
+                        {{ $rangeTitle }}
                     </span>
                 </div>
 
