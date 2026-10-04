@@ -657,7 +657,7 @@ class MailSettingsStrictTest extends TestCase
 
         app(OrderService::class)->sendConfirmationEmail($order);
 
-        Mail::assertSent(OrderConfirmationMail::class, function (OrderConfirmationMail $mail) use ($order) {
+        Mail::assertQueued(OrderConfirmationMail::class, function (OrderConfirmationMail $mail) use ($order) {
             return $mail->hasTo('buyer@shop.test')
                 && $mail->order->is($order)
                 && str_contains($mail->envelope()->subject, $order->order_number);
@@ -678,7 +678,7 @@ class MailSettingsStrictTest extends TestCase
         // notifyStatusChange فقط وضعیت SMS را برمی‌گرداند؛ ایمیل جداگانه ارسال می‌شود
         app(OrderService::class)->notifyStatusChange($order, OrderStatus::Processing, false, true);
 
-        Mail::assertSent(OrderStatusMail::class, fn (OrderStatusMail $mail) => $mail->hasTo('status@shop.test'));
+        Mail::assertQueued(OrderStatusMail::class, fn (OrderStatusMail $mail) => $mail->hasTo('status@shop.test'));
     }
 
     public function test_confirmation_mail_skipped_when_customer_email_blank(): void

@@ -69,16 +69,17 @@ class CheckoutController extends Controller
         }
 
         $address = auth()->user()->addresses()->findOrFail($validated['address_id']);
-        $cartItems = $this->cart->items();
+       $cartItems = $this->cart->items()
+    ->sortBy(fn (array $item) => $item['product']->id)
+    ->values();
         $couponCode = $this->coupons->getApplied()?->code;
 
         try {
             $order = DB::transaction(function () use ($validated, $address, $cartItems, $couponCode, $minOrderAmount) {
-                $shippingMethod = ShippingMethod::query()
-                    ->whereKey($validated['shipping_method_id'])
-                    ->where('is_active', true)
-                    ->lockForUpdate()
-                    ->firstOrFail();
+$shippingMethod = ShippingMethod::query()
+    ->whereKey($validated['shipping_method_id'])
+    ->where('is_active', true)
+    ->firstOrFail();
 
                 $subtotal = 0;
                 $resolvedLines = [];
@@ -238,7 +239,7 @@ class CheckoutController extends Controller
                 $this->orders->logActivity($order, 'created', 'سفارش توسط مشتری ثبت شد.');
 
                 return $order;
-            });
+            }, 3);
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }

@@ -34,6 +34,9 @@ php artisan queue:work
 C:\Users\TS\Music\shop\public\robots.txt
 $discountPercent = (float) (\App\Support\StoreSettings::get('c2c_discount_percent') ?? 1); // تخفیف کارت
 
+ http://127.0.0.1:8000/api/v3/torob/products
+ http://127.0.0.1:8000/api/v1/emalls/products
+
 ```
 
 سایت: [http://127.0.0.1:8000](http://127.0.0.1:8000)

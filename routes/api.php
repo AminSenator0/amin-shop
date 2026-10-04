@@ -7,6 +7,9 @@ use App\Models\C2CPayment;
 use Illuminate\Http\Request;
 use App\Enums\PaymentStatus;
 use App\Enums\OrderStatus;
+use App\Http\Controllers\Api\MarketplaceFeedController;
+
+
 
 /*
 |--------------------------------------------------------------------------
@@ -18,6 +21,10 @@ use App\Enums\OrderStatus;
 Route::get('/ping', function() {
     return response()->json(['pong' => true]);
 });
+
+// فید عمومی ترب و ایمالز (کش‌شده + محدودیت نرخ — بدون احراز هویت چون عمومی هستن)
+Route::get('/v3/torob/products', [MarketplaceFeedController::class, 'torob'])->middleware('throttle:60,1');
+Route::get('/v1/emalls/products', [MarketplaceFeedController::class, 'emalls'])->middleware('throttle:60,1');
 
 // ========== API گوشی فروشنده (محافظت‌شده با API Key + Rate Limit) ==========
 Route::middleware(['seller.auth', 'throttle:seller-poll'])->group(function () {

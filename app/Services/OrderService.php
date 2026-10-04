@@ -239,7 +239,8 @@ class OrderService
 
         $order->loadMissing(['items', 'shippingMethod']);
 
-        Mail::to($email)->send(new OrderConfirmationMail($order));
+        Mail::to($email)->queue(new OrderConfirmationMail($order));
+
     }
 
     public function sendStatusEmail(Order $order, OrderStatus $status): void
@@ -267,7 +268,7 @@ class OrderService
             return;
         }
 
-        Mail::to($email)->send(new OrderStatusMail($order, $message));
+        Mail::to($email)->queue(new OrderStatusMail($order, $message));
     }
 
     private function shippedMessage(Order $order, string $storeName): string
@@ -315,20 +316,25 @@ class OrderService
     {
         $callback = function () use ($order, $restoreStock) {
             if ($restoreStock) {
-                $order->load('items');
+$order->load('items');
 
-                foreach ($order->items as $item) {
-                    if ($item->product_id) {
-                        $product = Product::find($item->product_id);
-                        if ($product) {
-                            $product->incrementVariantStock(
-                                $item->options['size'] ?? null,
-                                $item->options['color'] ?? null,
-                                $item->quantity
-                            );
-                        }
-                    }
-                }
+$products = Product::query()
+    ->whereIn('id', $order->items->pluck('product_id')->filter()->unique()->values())
+    ->get()
+    ->keyBy('id');
+
+foreach ($order->items as $item) {
+    if ($item->product_id) {
+        $product = $products->get($item->product_id);
+        if ($product) {
+            $product->incrementVariantStock(
+                $item->options['size'] ?? null,
+                $item->options['color'] ?? null,
+                $item->quantity
+            );
+        }
+    }
+}
             }
 
             $order->update(['status' => OrderStatus::Cancelled]);
@@ -392,21 +398,26 @@ class OrderService
             $shouldRestoreStock = $locked->payment_status === PaymentStatus::Pending
                 && in_array($locked->status, [OrderStatus::Pending, OrderStatus::Failed], true);
 
-            if ($shouldRestoreStock) {
-                $locked->load('items');
+if ($shouldRestoreStock) {
+    $locked->load('items');
 
-                foreach ($locked->items as $item) {
-                    if ($item->product_id) {
-                        $product = Product::find($item->product_id);
-                        if ($product) {
-                            $product->incrementVariantStock(
-                                $item->options['size'] ?? null,
-                                $item->options['color'] ?? null,
-                                $item->quantity
-                            );
-                        }
-                    }
-                }
+    $products = Product::query()
+        ->whereIn('id', $locked->items->pluck('product_id')->filter()->unique()->values())
+        ->get()
+        ->keyBy('id');
+
+    foreach ($locked->items as $item) {
+        if ($item->product_id) {
+            $product = $products->get($item->product_id);
+            if ($product) {
+                $product->incrementVariantStock(
+                    $item->options['size'] ?? null,
+                    $item->options['color'] ?? null,
+                    $item->quantity
+                );
+            }
+        }
+    }
 
                 if ($locked->coupon_id) {
                     Coupon::query()->whereKey($locked->coupon_id)->where('used_count', '>', 0)->decrement('used_count');
@@ -447,14 +458,20 @@ class OrderService
                 return;
             }
 
-            $locked->load('items');
+$locked->load('items');
 
-            foreach ($locked->items as $item) {
-                if (! $item->product_id) {
-                    continue;
-                }
+$products = Product::query()
+    ->whereIn('id', $locked->items->pluck('product_id')->filter()->unique()->values())
+    ->lockForUpdate()
+    ->get()
+    ->keyBy('id');
 
-                $product = Product::query()->whereKey($item->product_id)->lockForUpdate()->first();
+foreach ($locked->items as $item) {
+    if (! $item->product_id) {
+        continue;
+    }
+
+    $product = $products->get($item->product_id);
 
                 if (! $product || ! $product->is_active) {
                     throw new \RuntimeException("محصول {$item->product_name} غیرفعال است.");
