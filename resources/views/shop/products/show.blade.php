@@ -51,7 +51,7 @@ $schemaProduct = [
 $schemaProduct = array_filter($schemaProduct, fn($v) => $v !== null);
 @endphp
 <script type="application/ld+json">
-{!! json_encode($schemaProduct, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) !!}
+{!! json_encode($schemaProduct, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) !!}
 </script>
 <script type="application/ld+json">
 {!! json_encode([
@@ -89,6 +89,7 @@ $schemaProduct = array_filter($schemaProduct, fn($v) => $v !== null);
         qty: {{ (int) old('quantity', 1) }},
         size: @js(old('size', '')),
         color: @js(old('color', '')),
+        cf: @js(old('custom_fields', [])),
         showStickyBar: false,
         requiresSize: @json($product->hasSizes()),
         requiresColor: @json($product->hasColors()),
@@ -240,7 +241,6 @@ $schemaProduct = array_filter($schemaProduct, fn($v) => $v !== null);
                                         </tr>
                                     @endif
 
-                                    {{-- مشخصات فنی داینامیک (Attributes) ← اضافه شده --}}
                                     @foreach($product->attributeValues as $attrValue)
                                         <tr>
                                             <th scope="row">{{ $attrValue->attribute->name }}</th>
@@ -315,7 +315,7 @@ $schemaProduct = array_filter($schemaProduct, fn($v) => $v !== null);
             <div class="product-sticky-bar-inner">
                 <div class="product-sticky-bar-info">
                     <p class="product-sticky-bar-name">{{ Str::limit($product->name, 40) }}</p>
-                    <p class="product-sticky-bar-price">{{ format_price($product->price) }}</p>
+                    <p class="product-sticky-bar-price" data-sticky-price>{{ format_price($product->price) }}</p>
                 </div>
                 @if($cartQty > 0)
                     <a href="{{ route('cart.index') }}" class="btn-primary product-sticky-bar-btn">مشاهده سبد خرید</a>
@@ -323,7 +323,7 @@ $schemaProduct = array_filter($schemaProduct, fn($v) => $v !== null);
                     <form
                         method="POST"
                         action="{{ route('cart.store') }}"
-                        class="product-sticky-bar-form"
+                        class="product-sticky-bar-form js-cart-form"
                         @submit="if ((requiresSize && !size) || (requiresColor && !color)) { $event.preventDefault(); document.getElementById('product-purchase-options')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }"
                     >
                         @csrf
@@ -379,6 +379,79 @@ $schemaProduct = array_filter($schemaProduct, fn($v) => $v !== null);
 
     document.querySelectorAll('input[name="size"], select[name="size"], input[name="color"], select[name="color"]').forEach(el => {
         el.addEventListener('change', updateStockDisplay);
+    });
+
+    // ─── Custom Field Options: انتخاب گزینه + آپدیت قیمت/موجودی ───
+    const BASE_PRICE = {{ (int) $product->price }};
+    const priceFmt = n => new Intl.NumberFormat('fa-IR').format(n) + ' تومان';
+
+    // کلیک روی دکمه/سواتچ (Alpine مقدار cf و hidden input را ست می‌کند)
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('[data-cf-option]');
+        if (!btn || btn.tagName === 'SELECT') return;
+
+        document.querySelectorAll(`[data-cf-option][data-field="${btn.dataset.field}"]`).forEach(b => {
+            b.classList.toggle('is-selected', b === btn);
+        });
+
+        applyCfMeta(btn.dataset);
+    });
+
+    // تغییر دراپ‌داون
+    document.addEventListener('change', function(e) {
+        const sel = e.target.closest('select[data-cf-option]');
+        if (!sel) return;
+        const opt = sel.selectedOptions[0];
+        applyCfMeta({
+            field: sel.dataset.field,
+            price: opt?.dataset.price || '',
+            stock: opt?.dataset.stock || '',
+        });
+    });
+
+    // قیمت نهایی = قیمت پایه، مگر اینکه گزینه انتخاب‌شده‌ای قیمت اختصاصی داشته باشد
+    // (فیلدها به ترتیب DOM؛ آخرین گزینه قیمت‌دار، قیمت را تعیین می‌کند)
+    function applyCfMeta() {
+        let price = BASE_PRICE;
+
+        document.querySelectorAll('[data-cf-option]').forEach(el => {
+            let selected = null;
+            if (el.tagName === 'SELECT') {
+                selected = el.selectedOptions[0];
+            } else if (el.classList.contains('is-selected')) {
+                selected = el;
+            }
+            const p = selected?.dataset?.price;
+            if (p !== undefined && p !== null && p !== '') {
+                price = parseInt(p, 10);
+            }
+        });
+
+        document.querySelectorAll('.product-price-current').forEach(el => { el.textContent = priceFmt(price); });
+        document.querySelectorAll('[data-sticky-price]').forEach(el => { el.textContent = priceFmt(price); });
+    }
+
+    // اعتبارسنجی فیلدهای اجباری سفارشی هنگام ثبت (فرم اصلی + نوار چسبان موبایل)
+    document.querySelectorAll('.js-cart-form').forEach(function(form) {
+        form.addEventListener('submit', function(e) {
+            let firstInvalid = null;
+            document.querySelectorAll('[data-cf-required]').forEach(function(group) {
+                const fieldId = group.dataset.cfRequired;
+                const hidden = form.querySelector(`input[name="custom_fields[${fieldId}]"]`) || document.querySelector(`input[name="custom_fields[${fieldId}]"]`);
+                const selected = hidden?.value;
+                const errEl = group.querySelector('.product-option-error');
+                if (!selected) {
+                    e.preventDefault();
+                    firstInvalid = firstInvalid || group;
+                    if (errEl) errEl.textContent = 'این گزینه را انتخاب کنید.';
+                } else if (errEl) {
+                    errEl.textContent = '';
+                }
+            });
+            if (firstInvalid) {
+                firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        });
     });
 })();
 </script>

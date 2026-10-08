@@ -72,15 +72,15 @@
     <div class="product-price-block">
         @if($product->hasDiscount())
             <div class="product-price-row">
-                <span class="product-price-current">{{ format_price($product->price) }}</span>
-                <span class="product-price-old">{{ format_price($product->compare_price) }}</span>
+                <span class="product-price-current" data-price-current>{{ format_price($product->price) }}</span>
+                <span class="product-price-old" data-price-old>{{ format_price($product->compare_price) }}</span>
             </div>
             <p class="product-price-savings">
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 14.25l6-6m4.5-3.493V21.75l-3.75-1.5-3.75 1.5-3.75-1.5-3.75 1.5V4.757c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0c1.1.128 1.907 1.077 1.907 2.185z"/></svg>
                 {{ format_price($product->savingsAmount()) }} صرفه‌جویی
             </p>
         @else
-            <span class="product-price-current">{{ format_price($product->price) }}</span>
+            <span class="product-price-current" data-price-current>{{ format_price($product->price) }}</span>
         @endif
 
         @if($store['freeShippingThreshold'] > 0)
@@ -98,7 +98,7 @@
 
     <div class="product-purchase-actions" id="product-purchase-options">
         @if($product->isInStock())
-            <form method="POST" action="{{ route('cart.store') }}" class="product-cart-form">
+            <form method="POST" action="{{ route('cart.store') }}" class="product-cart-form js-cart-form">
                 @csrf
                 <input type="hidden" name="product_id" value="{{ $product->id }}">
 
@@ -152,22 +152,24 @@
                         @error('quantity')<p class="product-option-error">{{ $message }}</p>@enderror
                     </div>
 
-                    {{-- ═══ فیلدهای سفارشی — طراحی مدرن ═══ --}}
+                    {{-- ═══ فیلدهای سفارشی ═══ --}}
                     @if($product->hasCustomFields())
-                        <div style="margin-top: 1.25rem; padding: 1rem; background: #f9fafb; border-radius: 0.875rem; border: 1px solid #f3f4f6;">
-                            {{-- هدر بخش --}}
-                            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
+                        <div class="product-option-group" style="margin-top: 1.25rem;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
                                 <svg style="width: 1rem; height: 1rem; color: #6b7280; flex-shrink: 0;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                                 </svg>
                                 <span style="font-size: 0.75rem; font-weight: 800; color: #6b7280; letter-spacing: 0.025em;">اطلاعات تکمیلی</span>
                             </div>
 
-                            {{-- لیست فیلدها --}}
                             <div style="display: flex; flex-direction: column; gap: 1rem;">
                                 @foreach($product->customFields as $field)
-                                    <div>
-                                        {{-- لیبل --}}
+                                    @php
+                                        $detailsMap = $field->relationLoaded('optionDetails')
+                                            ? $field->optionDetails->keyBy('value')
+                                            : collect();
+                                    @endphp
+                                    <div @if($field->type === 'select' && $field->is_required) data-cf-required="{{ $field->id }}" @endif>
                                         <label for="cf-{{ $field->id }}" style="display: block; font-size: 0.8125rem; font-weight: 600; color: #374151; margin-bottom: 0.375rem;">
                                             {{ $field->label }}
                                             @if($field->is_required)
@@ -176,28 +178,69 @@
                                         </label>
 
                                         @if($field->type === 'select')
-                                            {{-- دراپ‌داون شیک --}}
-                                            <div style="position: relative;">
-                                                <select name="custom_fields[{{ $field->id }}]" id="cf-{{ $field->id }}"
-                                                        {{ $field->is_required ? 'required' : '' }}
-                                                        style="width: 100%; appearance: none; -webkit-appearance: none; background-color: #ffffff; border: 1px solid #d1d5db; border-radius: 0.625rem; padding: 0.625rem 2.5rem 0.625rem 0.875rem; font-size: 0.875rem; color: #111827; line-height: 1.25rem; transition: all 0.2s ease; outline: none; cursor: pointer;"
-                                                        onfocus="this.style.borderColor='#9ca3af'; this.style.boxShadow='0 0 0 3px rgba(156, 163, 175, 0.1)';"
-                                                        onblur="this.style.borderColor='#d1d5db'; this.style.boxShadow='none';">
-                                                    <option value="" disabled selected style="color: #9ca3af;">انتخاب کنید...</option>
+                                            @php $display = $field->effectiveDisplayType() ?? 'dropdown'; @endphp
+
+                                            @if($display === 'dropdown')
+                                                {{-- کشویی --}}
+                                                <div style="position: relative;">
+                                                    <select name="custom_fields[{{ $field->id }}]" id="cf-{{ $field->id }}"
+                                                            onchange="cfSelectChanged(this)"
+                                                            {{ $field->is_required ? 'required' : '' }}
+                                                            style="width: 100%; appearance: none; -webkit-appearance: none; background-color: #ffffff; border: 1px solid #d1d5db; border-radius: 0.625rem; padding: 0.625rem 2.5rem 0.625rem 0.875rem; font-size: 0.875rem; color: #111827; line-height: 1.25rem; transition: all 0.2s ease; outline: none; cursor: pointer;"
+                                                            onfocus="this.style.borderColor='#9ca3af'; this.style.boxShadow='0 0 0 3px rgba(156, 163, 175, 0.1)';"
+                                                            onblur="this.style.borderColor='#d1d5db'; this.style.boxShadow='none';">
+                                                        <option value="" disabled @selected(!old("custom_fields.{$field->id}")) style="color: #9ca3af;">انتخاب کنید...</option>
+                                                        @foreach($field->options ?? [] as $option)
+                                                            @php
+                                                                $d = $detailsMap->get($option);
+                                                                $optImage = $d && $d->image ? product_image_url($d->image, $product->id) : null;
+                                                            @endphp
+                                                            <option value="{{ $option }}"
+                                                                    data-price="{{ $d && $d->hasCustomPrice() ? $d->price : '' }}"
+                                                                    data-stock="{{ $d && $d->hasCustomStock() ? $d->stock : '' }}"
+                                                                    data-image="{{ $optImage ?? '' }}"
+                                                                    @selected(old("custom_fields.{$field->id}") == $option)>{{ $option }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                    <svg style="position: absolute; left: 0.875rem; top: 50%; transform: translateY(-50%); width: 1rem; height: 1rem; color: #9ca3af; pointer-events: none;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                                                    </svg>
+                                                </div>
+                                            @else
+                                                {{-- دکمه‌ای / سواتچ — JS خالص (بدون Alpine) --}}
+                                                <div class="product-option-list" role="listbox" aria-label="{{ $field->label }}">
                                                     @foreach($field->options ?? [] as $option)
-                                                        <option value="{{ $option }}">{{ $option }}</option>
+                                                        @php
+                                                            $d = $detailsMap->get($option);
+                                                            $optImage = $d && $d->image ? product_image_url($d->image, $product->id) : null;
+                                                        @endphp
+                                                        <button
+                                                            type="button"
+                                                            class="product-option-btn"
+                                                            data-cf-option
+                                                            data-field="{{ $field->id }}"
+                                                            data-value="{{ $option }}"
+                                                            data-price="{{ $d && $d->hasCustomPrice() ? $d->price : '' }}"
+                                                            data-stock="{{ $d && $d->hasCustomStock() ? $d->stock : '' }}"
+                                                            data-image="{{ $optImage ?? '' }}"
+                                                            onclick="selectCfOption(this)"
+                                                            role="option"
+                                                        >
+                                                            @if($display === 'swatches' && $optImage)
+                                                                <img src="{{ $optImage }}" alt="{{ $option }}" style="width:1.5rem;height:1.5rem;border-radius:0.375rem;object-fit:cover;margin-left:0.375rem;" loading="lazy">
+                                                            @endif
+                                                            {{ $option }}
+                                                        </button>
                                                     @endforeach
-                                                </select>
-                                                {{-- آیکون فلش --}}
-                                                <svg style="position: absolute; left: 0.875rem; top: 50%; transform: translateY(-50%); width: 1rem; height: 1rem; color: #9ca3af; pointer-events: none;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                                                </svg>
-                                            </div>
+                                                </div>
+                                                <input type="hidden" name="custom_fields[{{ $field->id }}]" value="{{ old("custom_fields.{$field->id}") }}" @if($field->is_required) required @endif>
+                                            @endif
                                         @else
-                                            {{-- اینپوت شیک --}}
+                                            {{-- اینپوت متنی — بدون تغییر --}}
                                             <input type="{{ $field->type }}"
                                                    name="custom_fields[{{ $field->id }}]"
                                                    id="cf-{{ $field->id }}"
+                                                   value="{{ old("custom_fields.{$field->id}") }}"
                                                    placeholder="{{ $field->label }} را وارد کنید..."
                                                    {{ $field->is_required ? 'required' : '' }}
                                                    style="width: 100%; background-color: #ffffff; border: 1px solid #d1d5db; border-radius: 0.625rem; padding: 0.625rem 0.875rem; font-size: 0.875rem; color: #111827; line-height: 1.25rem; transition: all 0.2s ease; outline: none;"
@@ -208,6 +251,7 @@
                                         @error("custom_fields.{$field->id}")
                                             <p style="margin-top: 0.375rem; font-size: 0.75rem; color: #ef4444; font-weight: 500;">{{ $message }}</p>
                                         @enderror
+                                        <p class="product-option-error" style="display:none;"></p>
                                     </div>
                                 @endforeach
                             </div>
@@ -324,6 +368,71 @@ function fallbackCopy(text, label) {
     document.body.removeChild(input);
     label.textContent = 'کپی شد!';
     setTimeout(() => label.textContent = 'اشتراک‌گذاری', 2000);
+}
+
+// ─── گزینه‌های سفارشی: قیمت زنده + تعویض تصویر گالری ───
+const CF_BASE_PRICE = {{ (int) $product->price }};
+const cfPriceFmt = n => new Intl.NumberFormat('fa-IR').format(n) + ' تومان';
+
+function selectCfOption(btn) {
+    const field = btn.dataset.field;
+    document.querySelectorAll('[data-cf-option][data-field="' + field + '"]').forEach(function (b) {
+        b.classList.toggle('is-selected', b === btn);
+    });
+    const hidden = document.querySelector('input[name="custom_fields[' + field + ']"]');
+    if (hidden) hidden.value = btn.dataset.value;
+    updateCfPrice();
+    swapCfImage(btn.dataset.image);
+}
+
+function cfSelectChanged(sel) {
+    updateCfPrice();
+    const opt = sel.selectedOptions[0];
+    swapCfImage(opt ? (opt.dataset.image || '') : '');
+}
+
+function updateCfPrice() {
+    let price = CF_BASE_PRICE;
+
+    document.querySelectorAll('[data-cf-option]').forEach(function (el) {
+        let selected = null;
+        if (el.tagName === 'SELECT') {
+            if (el.value !== '') selected = el.selectedOptions[0];
+        } else if (el.classList.contains('is-selected')) {
+            selected = el;
+        }
+        const p = selected ? selected.dataset.price : '';
+        if (p !== '' && p !== undefined && p !== null) {
+            price = parseInt(p, 10);
+        }
+    });
+
+    document.querySelectorAll('[data-price-current]').forEach(function (el) { el.textContent = cfPriceFmt(price); });
+    document.querySelectorAll('[data-sticky-price]').forEach(function (el) { el.textContent = cfPriceFmt(price); });
+}
+
+function swapCfImage(url) {
+    if (!url) return;
+
+    // ۱) اگر تصویر گزینه در گالری موجود است → همان اسلاید را فعال کن (کلیک روی thumb)
+    const slideImgs = Array.prototype.slice.call(document.querySelectorAll('.product-gallery-slide img'));
+    const idx = slideImgs.findIndex(function (img) {
+        return img.getAttribute('src') === url || img.src === url || img.src.indexOf(url) !== -1;
+    });
+
+    if (idx >= 0) {
+        const thumbs = document.querySelectorAll('.product-gallery-thumb');
+        if (thumbs[idx]) { thumbs[idx].click(); return; }
+    }
+
+    // ۲) نیست → src اسلاید و thumb فعال را عوض کن
+    const visibleSlideImg = document.querySelector('.product-gallery-slide:not([style*="display: none"]) img')
+        || document.querySelector('.product-gallery-slide img');
+    if (visibleSlideImg) visibleSlideImg.src = url;
+
+    const activeThumbImg = document.querySelector('.product-gallery-thumb.is-active img')
+        || document.querySelector('.product-gallery-thumb img');
+    if (activeThumbImg) activeThumbImg.src = url;
 }
 </script>
     @unless($compact)

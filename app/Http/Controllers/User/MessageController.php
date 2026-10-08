@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\User\ContactMessageReplyRequest;
 use App\Http\Requests\User\StoreContactMessageRequest;
 use App\Models\ContactMessage;
+use App\Models\ContactMessageReply;
 use App\Services\ContactMessageService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
@@ -68,19 +69,25 @@ class MessageController extends Controller
     public function reply(ContactMessageReplyRequest $request, ContactMessage $message): RedirectResponse
     {
         $this->authorizeMessage($message);
+
+        // گارد تیکت: گفتگوی بسته‌شده قابل پاسخ نیست (حتی با POST دستی)
+        if ($message->isClosed()) {
+            return back()->with('error', 'این گفتگو بسته شده است. برای موضوع جدید، پیام تازه ارسال کنید.');
+        }
     
         $data = [
             'contact_message_id' => $message->id,
             'user_id' => auth()->id(),
             'body' => $request->validated('body'),
             'is_from_admin' => false,
+            'reply_to' => $request->validated('reply_to') ?: null,
         ];
     
         if ($request->hasFile('attachment')) {
             $data['attachment'] = upload_message_attachment($request->file('attachment'));
         }
     
-        \App\Models\ContactMessageReply::create($data);
+        ContactMessageReply::create($data);
     
         // به ادمین نشون بده که پاسخ جدید داره
         $message->update(['has_unread_reply_for_user' => false]);
@@ -89,6 +96,7 @@ class MessageController extends Controller
             ->route('user.messages.show', $message)
             ->with('success', 'پیام شما ارسال شد. به زودی پاسخ می‌دهیم.');
     }
+
     private function authorizeMessage(ContactMessage $message): void
     {
         if (! $this->messages->userCanAccess($message, auth()->user())) {

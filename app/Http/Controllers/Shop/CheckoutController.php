@@ -10,6 +10,7 @@ use App\Models\Coupon;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\ProductCustomFieldOption;
 use App\Models\ShippingMethod;
 use App\Models\Wallet;
 use App\Enums\WalletReferenceType;
@@ -69,17 +70,17 @@ class CheckoutController extends Controller
         }
 
         $address = auth()->user()->addresses()->findOrFail($validated['address_id']);
-       $cartItems = $this->cart->items()
-    ->sortBy(fn (array $item) => $item['product']->id)
-    ->values();
+        $cartItems = $this->cart->items()
+            ->sortBy(fn (array $item) => $item['product']->id)
+            ->values();
         $couponCode = $this->coupons->getApplied()?->code;
 
         try {
             $order = DB::transaction(function () use ($validated, $address, $cartItems, $couponCode, $minOrderAmount) {
-$shippingMethod = ShippingMethod::query()
-    ->whereKey($validated['shipping_method_id'])
-    ->where('is_active', true)
-    ->firstOrFail();
+                $shippingMethod = ShippingMethod::query()
+                    ->whereKey($validated['shipping_method_id'])
+                    ->where('is_active', true)
+                    ->firstOrFail();
 
                 $subtotal = 0;
                 $resolvedLines = [];
@@ -91,19 +92,37 @@ $shippingMethod = ShippingMethod::query()
                         ->lockForUpdate()
                         ->first();
 
-                    if (! $product || ! $product->hasEnoughStock($item['quantity'], $item['size'] ?? null, $item['color'] ?? null)) {
+                    if (! $product) {
+                        throw new \RuntimeException("محصول {$item['product']->name} در دسترس نیست.");
+                    }
+
+                    // گزینه‌های سفارشی با موجودی اختصاصی → لاک ردیف‌ها و چک موجودی
+                    $optionLocks = $this->lockSelectedOptions($item['custom_fields'] ?? []);
+                    $optionLimit = $this->optionLimitFromLocks($optionLocks);
+
+                    if ($optionLimit !== null) {
+                        // قانون: گزینه با موجودی اختصاصی → موجودی گزینه مرجع است
+                        if ($item['quantity'] > $optionLimit) {
+                            throw new \RuntimeException("موجودی گزینه انتخاب‌شده برای {$item['product']->name} کافی نیست.");
+                        }
+                    } elseif (! $product->hasEnoughStock($item['quantity'], $item['size'] ?? null, $item['color'] ?? null)) {
                         throw new \RuntimeException("موجودی {$item['product']->name} کافی نیست.");
                     }
 
-                    $lineTotal = $product->price * $item['quantity'];
+                    // قیمت نهایی = snapshot هنگام افزودن به سبد (سازگار با CartService)
+                    $unitPrice = (int) ($item['price'] ?? $product->price);
+                    $lineTotal = $unitPrice * $item['quantity'];
                     $subtotal += $lineTotal;
 
                     $resolvedLines[] = [
                         'product' => $product,
+                        'option_locks' => $optionLocks,
+                        'has_custom_option_stock' => $optionLimit !== null,
                         'quantity' => $item['quantity'],
                         'size' => $item['size'] ?? null,
                         'color' => $item['color'] ?? null,
                         'custom_fields' => $item['custom_fields'] ?? [],
+                        'unit_price' => $unitPrice,
                         'line_total' => $lineTotal,
                     ];
                 }
@@ -172,7 +191,17 @@ $shippingMethod = ShippingMethod::query()
 
                 foreach ($resolvedLines as $line) {
                     $product = $line['product'];
-                    $product->decrementVariantStock($line['size'] ?? null, $line['color'] ?? null, $line['quantity']);
+
+                    if ($line['has_custom_option_stock']) {
+                        // قانون: موجودی از گزینه کم می‌شود (محصول/واریانت دست‌نخورده می‌ماند)
+                        foreach ($line['option_locks'] as $option) {
+                            if ($option && $option->hasCustomStock()) {
+                                $option->decrement('stock', $line['quantity']);
+                            }
+                        }
+                    } else {
+                        $product->decrementVariantStock($line['size'] ?? null, $line['color'] ?? null, $line['quantity']);
+                    }
 
                     $options = array_filter([
                         'size' => $line['size'],
@@ -186,7 +215,7 @@ $shippingMethod = ShippingMethod::query()
                         'product_sku' => $product->sku,
                         'options' => $options !== [] ? $options : null,
                         'custom_fields' => $line['custom_fields'] !== [] ? $line['custom_fields'] : null,
-                        'price' => $product->price,
+                        'price' => $line['unit_price'],
                         'quantity' => $line['quantity'],
                         'total' => $line['line_total'],
                     ]);
@@ -324,5 +353,66 @@ $shippingMethod = ShippingMethod::query()
         }
 
         return redirect()->route('checkout.payment', $order);
+    }
+
+    // ─── گزینه‌های سفارشی: لاک و چک موجودی ─────────────────────
+
+    /**
+     * ردیف‌های گزینه‌های انتخاب‌شده را لاک کرده و برمی‌گرداند.
+     * خروجی: map با کلید fieldId|value → ProductCustomFieldOption (یا ردیف‌های لاک‌شده)
+     */
+    private function lockSelectedOptions(array $customFields): array
+    {
+        if ($customFields === []) {
+            return [];
+        }
+
+        $locks = ProductCustomFieldOption::query()
+            ->where(function ($q) use ($customFields) {
+                foreach ($customFields as $fieldId => $data) {
+                    $value = $data['value'] ?? null;
+                    if ($value === null || $value === '') {
+                        continue;
+                    }
+                    $q->orWhere(function ($qq) use ($fieldId, $value) {
+                        $qq->where('product_custom_field_id', (int) $fieldId)
+                           ->where('value', $value);
+                    });
+                }
+            })
+            ->lockForUpdate()
+            ->get()
+            ->keyBy(fn ($o) => $o->product_custom_field_id.'|'.$o->value);
+
+        $result = [];
+        foreach ($customFields as $fieldId => $data) {
+            $value = $data['value'] ?? null;
+            if ($value === null || $value === '') {
+                continue;
+            }
+            $option = $locks->get((int) $fieldId.'|'.$value);
+            if ($option) {
+                $result[] = $option;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * حد موجودی از میان گزینه‌های لاک‌شده (فقط آن‌هایی که موجودی اختصاصی دارند).
+     * null = هیچ‌کدام موجودی اختصاصی ندارند → مسیر قدیمی (محصول/واریانت)
+     */
+    private function optionLimitFromLocks(array $optionLocks): ?int
+    {
+        $limits = [];
+
+        foreach ($optionLocks as $option) {
+            if ($option->hasCustomStock()) {
+                $limits[] = (int) $option->stock;
+            }
+        }
+
+        return $limits !== [] ? min($limits) : null;
     }
 }

@@ -44,6 +44,8 @@ class HomepageSettingsRequest extends FormRequest
             'homepage_size_guide_enabled' => ['sometimes', 'boolean'],
             'homepage_sticky_nav_enabled' => ['sometimes', 'boolean'],
             'homepage_why_us_enabled' => ['sometimes', 'boolean'],
+            'homepage_banners_enabled' => ['sometimes', 'boolean'],
+            'homepage_categories_enabled' => ['sometimes', 'boolean'],
             'newsletter_incentive_text' => ['nullable', 'string', 'max:255'],
             'payment_gateways' => ['nullable', 'string', 'max:500'],
             'enamad_url' => ['nullable', 'url', 'max:500'],

@@ -43,14 +43,15 @@ class ContactMessageService
         }
     }
 
-    public function adminReply(ContactMessage $message, User $admin, string $body, ReplyChannel $channel = ReplyChannel::Panel): ContactMessageReply
+    public function adminReply(ContactMessage $message, User $admin, ?string $body, ReplyChannel $channel = ReplyChannel::Panel, ?array $replyTo = null): ContactMessageReply
     {
-        $reply = DB::transaction(function () use ($message, $admin, $body, $channel) {
+        $reply = DB::transaction(function () use ($message, $admin, $body, $channel, $replyTo) {
             $reply = $message->replies()->create([
                 'user_id' => $admin->id,
-                'body' => $body,
+                'body' => $body ?? '',
                 'is_from_admin' => true,
                 'channel' => $channel->value,
+                'reply_to' => $replyTo,
             ]);
 
             $message->update([
@@ -76,16 +77,17 @@ class ContactMessageService
         return $reply;
     }
 
-    public function userReply(ContactMessage $message, User $user, string $body): ContactMessageReply
+    public function userReply(ContactMessage $message, User $user, ?string $body, ?array $replyTo = null): ContactMessageReply
     {
-        return DB::transaction(function () use ($message, $user, $body) {
+        return DB::transaction(function () use ($message, $user, $body, $replyTo) {
             $this->linkToUser($message, $user);
 
             $reply = $message->replies()->create([
                 'user_id' => $user->id,
-                'body' => $body,
+                'body' => $body ?? '',
                 'is_from_admin' => false,
                 'channel' => ReplyChannel::Panel->value,
+                'reply_to' => $replyTo,
             ]);
 
             $message->markAsUnread();
@@ -117,11 +119,11 @@ class ContactMessageService
         $reply->update(['sms_sent' => $sent]);
     }
 
-    private function sendReplyBodyBySms(ContactMessage $message, ContactMessageReply $reply, string $body): void
+    private function sendReplyBodyBySms(ContactMessage $message, ContactMessageReply $reply, ?string $body): void
     {
         $phone = $this->resolvePhone($message);
 
-        if (! $phone) {
+        if (! $phone || blank($body)) {
             return;
         }
 
@@ -130,9 +132,9 @@ class ContactMessageService
         $reply->update(['sms_sent' => $sent]);
     }
 
-    private function sendReplyByEmail(ContactMessage $message, ContactMessageReply $reply, string $body): void
+    private function sendReplyByEmail(ContactMessage $message, ContactMessageReply $reply, ?string $body): void
     {
-        if (! $message->email) {
+        if (! $message->email || blank($body)) {
             return;
         }
 

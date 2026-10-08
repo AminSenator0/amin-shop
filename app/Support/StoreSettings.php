@@ -70,6 +70,8 @@ class StoreSettings
         'homepage_about_snippet_enabled' => '1',
         'homepage_size_guide_enabled' => '1',
         'homepage_sticky_nav_enabled' => '1',
+        'homepage_banners_enabled' => '1',        // ← اضافه کن
+'homepage_categories_enabled' => '1',     // ← اضافه کن
         'newsletter_incentive_text' => '۱۰٪ تخفیف اولین خرید با عضویت در خبرنامه',
         // درگاه زرین‌پال (خالی = استفاده از .env در صورت وجود)
         'zarinpal_merchant_id' => '',
@@ -1061,6 +1063,9 @@ class StoreSettings
             'homepageAboutSnippetEnabled' => self::bool('homepage_about_snippet_enabled'),
             'homepageSizeGuideEnabled' => self::bool('homepage_size_guide_enabled'),
             'homepageStickyNavEnabled' => self::bool('homepage_sticky_nav_enabled'),
+// ⬇️ این دو خط — نکته: default '1' یعنی تا وقتی ادمین ذخیره نکرده، بخش روشن می‌مونه
+'homepageBannersEnabled' => filter_var(self::get('homepage_banners_enabled', '1'), FILTER_VALIDATE_BOOLEAN),
+'homepageCategoriesEnabled' => filter_var(self::get('homepage_categories_enabled', '1'), FILTER_VALIDATE_BOOLEAN),
             'newsletterIncentiveText' => self::get('newsletter_incentive_text'),
         ];
     }

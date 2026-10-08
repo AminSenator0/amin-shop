@@ -10,6 +10,7 @@ use App\Models\Coupon;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\ProductCustomFieldOption;
 use App\Models\User;
 use App\Support\StoreSettings;
 use Illuminate\Database\Eloquent\Builder;
@@ -26,6 +27,7 @@ class OrderService
         private SmsService $sms,
         private WalletService $wallets,
     ) {}
+
     public function pendingActionCount(): int
     {
         return Order::query()
@@ -172,7 +174,6 @@ class OrderService
         $this->logActivity($order, 'wallet_refunded', 'سهم کیف پول ('.format_price($amount).') به کیف پول کاربر برگشت.');
     }
 
-
     public function notifyStatusChange(Order $order, OrderStatus $status, bool $sendSms, bool $sendEmail = false): bool
     {
         $smsSent = false;
@@ -240,7 +241,6 @@ class OrderService
         $order->loadMissing(['items', 'shippingMethod']);
 
         Mail::to($email)->queue(new OrderConfirmationMail($order));
-
     }
 
     public function sendStatusEmail(Order $order, OrderStatus $status): void
@@ -316,25 +316,32 @@ class OrderService
     {
         $callback = function () use ($order, $restoreStock) {
             if ($restoreStock) {
-$order->load('items');
+                $order->load('items');
 
-$products = Product::query()
-    ->whereIn('id', $order->items->pluck('product_id')->filter()->unique()->values())
-    ->get()
-    ->keyBy('id');
+                $products = Product::query()
+                    ->whereIn('id', $order->items->pluck('product_id')->filter()->unique()->values())
+                    ->get()
+                    ->keyBy('id');
 
-foreach ($order->items as $item) {
-    if ($item->product_id) {
-        $product = $products->get($item->product_id);
-        if ($product) {
-            $product->incrementVariantStock(
-                $item->options['size'] ?? null,
-                $item->options['color'] ?? null,
-                $item->quantity
-            );
-        }
-    }
-}
+                foreach ($order->items as $item) {
+                    if (! $item->product_id) {
+                        continue;
+                    }
+
+                    // اول موجودی گزینه‌های سفارشی (اگر سفارش از موجودی گزینه کم کرده بود)
+                    if ($this->restoreItemOptionStock($item)) {
+                        continue;
+                    }
+
+                    $product = $products->get($item->product_id);
+                    if ($product) {
+                        $product->incrementVariantStock(
+                            $item->options['size'] ?? null,
+                            $item->options['color'] ?? null,
+                            $item->quantity
+                        );
+                    }
+                }
             }
 
             $order->update(['status' => OrderStatus::Cancelled]);
@@ -398,26 +405,32 @@ foreach ($order->items as $item) {
             $shouldRestoreStock = $locked->payment_status === PaymentStatus::Pending
                 && in_array($locked->status, [OrderStatus::Pending, OrderStatus::Failed], true);
 
-if ($shouldRestoreStock) {
-    $locked->load('items');
+            if ($shouldRestoreStock) {
+                $locked->load('items');
 
-    $products = Product::query()
-        ->whereIn('id', $locked->items->pluck('product_id')->filter()->unique()->values())
-        ->get()
-        ->keyBy('id');
+                $products = Product::query()
+                    ->whereIn('id', $locked->items->pluck('product_id')->filter()->unique()->values())
+                    ->get()
+                    ->keyBy('id');
 
-    foreach ($locked->items as $item) {
-        if ($item->product_id) {
-            $product = $products->get($item->product_id);
-            if ($product) {
-                $product->incrementVariantStock(
-                    $item->options['size'] ?? null,
-                    $item->options['color'] ?? null,
-                    $item->quantity
-                );
-            }
-        }
-    }
+                foreach ($locked->items as $item) {
+                    if (! $item->product_id) {
+                        continue;
+                    }
+
+                    if ($this->restoreItemOptionStock($item)) {
+                        continue;
+                    }
+
+                    $product = $products->get($item->product_id);
+                    if ($product) {
+                        $product->incrementVariantStock(
+                            $item->options['size'] ?? null,
+                            $item->options['color'] ?? null,
+                            $item->quantity
+                        );
+                    }
+                }
 
                 if ($locked->coupon_id) {
                     Coupon::query()->whereKey($locked->coupon_id)->where('used_count', '>', 0)->decrement('used_count');
@@ -458,20 +471,20 @@ if ($shouldRestoreStock) {
                 return;
             }
 
-$locked->load('items');
+            $locked->load('items');
 
-$products = Product::query()
-    ->whereIn('id', $locked->items->pluck('product_id')->filter()->unique()->values())
-    ->lockForUpdate()
-    ->get()
-    ->keyBy('id');
+            $products = Product::query()
+                ->whereIn('id', $locked->items->pluck('product_id')->filter()->unique()->values())
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id');
 
-foreach ($locked->items as $item) {
-    if (! $item->product_id) {
-        continue;
-    }
+            foreach ($locked->items as $item) {
+                if (! $item->product_id) {
+                    continue;
+                }
 
-    $product = $products->get($item->product_id);
+                $product = $products->get($item->product_id);
 
                 if (! $product || ! $product->is_active) {
                     throw new \RuntimeException("محصول {$item->product_name} غیرفعال است.");
@@ -480,11 +493,14 @@ foreach ($locked->items as $item) {
                 $size = $item->options['size'] ?? null;
                 $color = $item->options['color'] ?? null;
 
-                if (! $product->hasEnoughStock($item->quantity, $size, $color)) {
-                    throw new \RuntimeException("موجودی {$item->product_name} برای پرداخت مجدد کافی نیست.");
-                }
+                // رزرو موجودی گزینه‌های سفارشی (اگر سفارش از موجودی گزینه کم کرده بود)
+                if (! $this->reserveItemOptionStock($item)) {
+                    if (! $product->hasEnoughStock($item->quantity, $size, $color)) {
+                        throw new \RuntimeException("موجودی {$item->product_name} برای پرداخت مجدد کافی نیست.");
+                    }
 
-                $product->decrementVariantStock($size, $color, $item->quantity);
+                    $product->decrementVariantStock($size, $color, $item->quantity);
+                }
             }
 
             if ($locked->coupon_id) {
@@ -500,6 +516,110 @@ foreach ($locked->items as $item) {
 
         $order->refresh();
     }
+
+    // ─── کمک‌کننده‌های موجودی گزینه‌های سفارشی ──────────────────
+
+    /**
+     * برگردوندن موجودی گزینه‌های سفارشی یک آیتم سفارش.
+     * true = موجودی از گزینه‌ها برگشت (مسیر محصول نباید اجرا شود) —
+     * دقیقاً هم‌منطق چک‌اوت: هر گزینه‌ای که موجودی اختصاصی دارد، موجودی از همان کم/زیاد می‌شود.
+     */
+    private function restoreItemOptionStock(OrderItem $item): bool
+    {
+        $options = $this->optionDetailsForItem($item);
+
+        if ($options->isEmpty()) {
+            return false;
+        }
+
+        $handled = false;
+
+        foreach ($options as $option) {
+            if ($option->hasCustomStock()) {
+                $option->increment('stock', $item->quantity);
+                $handled = true;
+            }
+        }
+
+        return $handled;
+    }
+
+    /**
+     * رزرو موجودی گزینه‌های سفارشی (با لاک) برای پرداخت مجدد.
+     * true = رزرو از گزینه‌ها انجام شد؛ false = مسیر قدیمی (محصول/واریانت)
+     * @throws \RuntimeException اگر موجودی گزینه کافی نباشد
+     */
+    private function reserveItemOptionStock(OrderItem $item): bool
+    {
+        $customFields = $item->custom_fields ?? [];
+
+        if ($customFields === []) {
+            return false;
+        }
+
+        $options = ProductCustomFieldOption::query()
+            ->where(function ($q) use ($customFields) {
+                foreach ($customFields as $fieldId => $data) {
+                    $value = $data['value'] ?? null;
+                    if ($value === null || $value === '') {
+                        continue;
+                    }
+                    $q->orWhere(function ($qq) use ($fieldId, $value) {
+                        $qq->where('product_custom_field_id', (int) $fieldId)
+                           ->where('value', $value);
+                    });
+                }
+            })
+            ->lockForUpdate()
+            ->get();
+
+        if ($options->isEmpty()) {
+            return false;
+        }
+
+        $handled = false;
+
+        foreach ($options as $option) {
+            if ($option->hasCustomStock()) {
+                if ($option->stock < $item->quantity) {
+                    throw new \RuntimeException("موجودی گزینه «{$option->value}» برای {$item->product_name} کافی نیست.");
+                }
+
+                $option->decrement('stock', $item->quantity);
+                $handled = true;
+            }
+        }
+
+        return $handled;
+    }
+
+    /**
+     * ردیف‌های جزئیات گزینه‌های یک آیتم سفارش (بدون لاک — فقط برای restore)
+     */
+    private function optionDetailsForItem(OrderItem $item): Collection
+    {
+        $customFields = $item->custom_fields ?? [];
+
+        if ($customFields === []) {
+            return collect();
+        }
+
+        return ProductCustomFieldOption::query()
+            ->where(function ($q) use ($customFields) {
+                foreach ($customFields as $fieldId => $data) {
+                    $value = $data['value'] ?? null;
+                    if ($value === null || $value === '') {
+                        continue;
+                    }
+                    $q->orWhere(function ($qq) use ($fieldId, $value) {
+                        $qq->where('product_custom_field_id', (int) $fieldId)
+                           ->where('value', $value);
+                    });
+                }
+            })
+            ->get();
+    }
+    // ─── پایان کمک‌کننده‌ها ─────────────────────────────────────
 
     public function reorder(Order $order, CartService $cart): array
     {
@@ -521,7 +641,7 @@ foreach ($locked->items as $item) {
                 $color = $item->options['color'] ?? null;
                 $availableStock = $product->variantStock($size, $color);
                 $qty = min($item->quantity, max(1, $availableStock));
-                $cart->add($product->id, $qty, $size, $color);
+                $cart->add($product->id, $qty, $size, $color, $item->custom_fields ?? []);
                 $added += $qty;
             } catch (\RuntimeException) {
                 $skipped[] = $item->product_name;

@@ -13,13 +13,35 @@
         ])->values()
         : collect();
 
-    $customFields = old('custom_fields', $isEdit && $product->relationLoaded('customFields') ? $product->customFields->sortBy('sort_order')->map(fn($f) => [
-        'label' => $f->label,
-        'type' => $f->type,
-        'options' => is_array($f->options) ? implode("\n", $f->options) : ($f->options ?? ''),
-        'is_required' => $f->is_required,
-        'sort_order' => $f->sort_order,
-    ])->values()->toArray() : []);
+    // ساخت داده فیلدهای سفارشی برای نمایش (حالت ویرایش / old بعد از خطای اعتبارسنجی)
+    $customFields = old('custom_fields', $isEdit && $product->relationLoaded('customFields') ? $product->customFields->sortBy('sort_order')->map(function ($f) {
+        $optionRows = $f->optionDetails->map(fn ($o) => [
+            'value' => $o->value,
+            'stock' => $o->hasCustomStock() ? $o->stock : '',
+            'price' => $o->hasCustomPrice() ? $o->price : '',
+            'image' => $o->image ?? '',
+        ])->values()->toArray();
+
+        // سازگاری با داده قدیمی: فیلد select بدون جزئیات → گزینه‌ها به‌صورت ردیف value-only نمایش داده شوند
+        if ($optionRows === [] && is_array($f->options) && $f->options !== []) {
+            $optionRows = array_map(fn ($v) => ['value' => $v, 'stock' => '', 'price' => '', 'image' => ''], $f->options);
+        }
+
+        return [
+            'label' => $f->label,
+            'type' => $f->type,
+            'display_type' => $f->display_type ?: 'buttons',
+            'options' => is_array($f->options) ? implode("\n", $f->options) : ($f->options ?? ''),
+            'option_rows' => $optionRows,
+            'is_required' => $f->is_required,
+            'sort_order' => $f->sort_order,
+        ];
+    })->values()->toArray() : []);
+
+    // تصاویر گالری محصول (برای انتخاب تصویر گزینه — فقط در ویرایش)
+    $galleryImages = $isEdit
+        ? $product->images()->orderBy('sort_order')->pluck('path')->toArray()
+        : [];
 @endphp
 
 @if($errors->any())
@@ -151,9 +173,10 @@
        
     <x-admin.form-section title="قیمت و موجودی">
         <div>
-            <label class="admin-field-label" for="price">قیمت (تومان) <span class="text-rose-500">*</span></label>
-            <input type="text" name="price" id="price" value="{{ old('price', $product ? format_number($product->price, false) : '') }}" data-price-input class="admin-input w-full" placeholder="۰" dir="ltr" inputmode="numeric" required>
+            <label class="admin-field-label" for="price">قیمت (تومان)</label>
+            <input type="text" name="price" id="price" value="{{ old('price', $product ? format_number($product->price, false) : '') }}" data-price-input class="admin-input w-full" placeholder="خالی = از گزینه‌ها" dir="ltr" inputmode="numeric">
             @error('price')<p class="admin-field-error">{{ $message }}</p>@enderror
+            <p class="admin-field-hint">اگر خالی بگذارید، از حداقل قیمت گزینه‌های فیلدهای سفارشی محاسبه می‌شود</p>
         </div>
         <div>
             <label class="admin-field-label" for="compare_price">قیمت قبل از تخفیف (تومان)</label>
@@ -162,17 +185,16 @@
             <p class="admin-field-hint">برای نمایش خط‌خورده روی فروشگاه</p>
         </div>
         <div>
-            <label class="admin-field-label" for="stock">موجودی کل <span class="text-rose-500">*</span></label>
+            <label class="admin-field-label" for="stock">موجودی کل</label>
             <x-admin.number-stepper
                 name="stock"
                 id="stock"
                 :value="old('stock', $product?->stock ?? 0)"
                 :min="0"
                 class="w-full max-w-[12rem]"
-                required
             />
             @error('stock')<p class="admin-field-error">{{ $message }}</p>@enderror
-            <p class="admin-field-hint" id="stock-hint">اگر سایز/رنگ وارد کنید، این عدد خودکار از مجموع واریانت‌ها محاسبه می‌شود.</p>
+            <p class="admin-field-hint" id="stock-hint">اگر خالی بگذارید، از مجموع موجودی گزینه‌ها محاسبه می‌شود.</p>
         </div>
         <div>
             <label class="admin-field-label" for="weight">وزن (گرم)</label>
@@ -220,7 +242,7 @@
     <x-admin.form-section title="فیلدهای سفارشی (قبل از سبد)">
         <div class="md:col-span-2">
             <p class="text-xs text-zinc-500 mb-3">
-                این فیلدها در صفحه محصول، <strong>قبل از دکمه «افزودن به سبد»</strong> به مشتری نمایش داده می‌شوند (مثل: مدت زمان اشتراک، ایمیل اکانت، رمز عبور و...)
+                این فیلدها در صفحه محصول، <strong>قبل از دکمه «افزودن به سبد»</strong> به مشتری نمایش داده می‌شوند. برای فیلدهای «لیست کشویی» می‌توانید برای هر گزینه موجودی، قیمت و تصویر جداگانه تعریف کنید (خالی = از محصول).
             </p>
 
             <div id="custom-fields-container" class="space-y-3">
@@ -229,7 +251,7 @@
                         <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
                             <div class="md:col-span-4">
                                 <label class="admin-field-label">عنوان فیلد <span class="text-rose-500">*</span></label>
-                                <input type="text" name="custom_fields[{{ $index }}][label]" value="{{ $field['label'] ?? '' }}" class="admin-input w-full" placeholder="مثال: مدت زمان اشتراک" required>
+                                <input type="text" name="custom_fields[{{ $index }}][label]" value="{{ $field['label'] ?? '' }}" class="admin-input w-full" placeholder="مثال: جنس پارچه" required>
                             </div>
                             <div class="md:col-span-3">
                                 <label class="admin-field-label">نوع فیلد <span class="text-rose-500">*</span></label>
@@ -237,7 +259,7 @@
                                     <option value="text" {{ ($field['type'] ?? 'text') == 'text' ? 'selected' : '' }}>متن تک‌خطی</option>
                                     <option value="email" {{ ($field['type'] ?? '') == 'email' ? 'selected' : '' }}>ایمیل</option>
                                     <option value="password" {{ ($field['type'] ?? '') == 'password' ? 'selected' : '' }}>رمز عبور</option>
-                                    <option value="select" {{ ($field['type'] ?? '') == 'select' ? 'selected' : '' }}>لیست کشویی</option>
+                                    <option value="select" {{ ($field['type'] ?? '') == 'select' ? 'selected' : '' }}>انتخاب از گزینه‌ها</option>
                                 </select>
                             </div>
                             <div class="md:col-span-2">
@@ -253,10 +275,42 @@
                                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                                 </button>
                             </div>
+
+                            {{-- ═══ بخش گزینه‌ها (فقط برای type=select) ═══ --}}
                             <div class="md:col-span-12 cf-options {{ ($field['type'] ?? 'text') !== 'select' ? 'hidden' : '' }}">
-                                <label class="admin-field-label">گزینه‌ها <span class="text-zinc-400 text-xs font-normal">(هر خط یک گزینه)</span></label>
-                                <textarea name="custom_fields[{{ $index }}][options]" rows="3" class="admin-input w-full resize-y" placeholder="1 ماهه&#10;3 ماهه&#10;6 ماهه">{{ $field['options'] ?? '' }}</textarea>
+                                <div class="rounded-lg border border-indigo-100 bg-indigo-50/40 p-4 space-y-4">
+                                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                                        <div>
+                                            <label class="admin-field-label">حالت نمایش گزینه‌ها</label>
+                                            <select name="custom_fields[{{ $index }}][display_type]" class="admin-select w-full">
+                                                <option value="buttons" @selected(($field['display_type'] ?? 'buttons') === 'buttons')>دکمه‌ای</option>
+                                                <option value="dropdown" @selected(($field['display_type'] ?? '') === 'dropdown')>کشویی (دراپ‌داون)</option>
+                                                <option value="swatches" @selected(($field['display_type'] ?? '') === 'swatches')>سواتچ (مربع‌های رنگی)</option>
+                                            </select>
+                                        </div>
+                                        <p class="sm:col-span-2 text-xs text-zinc-500 leading-5 pb-1">
+                                            موجودی و قیمت هر گزینه اختیاری است؛ خالی = از محصول استفاده می‌شود.
+                                        </p>
+                                    </div>
+
+                                    <div class="cf-option-rows space-y-2" data-cf-index="{{ $index }}">
+                                        @foreach(($field['option_rows'] ?? []) as $optIndex => $opt)
+                                            @include('admin.products._custom-field-option-row', [
+                                                'cfIndex' => $index,
+                                                'optIndex' => $optIndex,
+                                                'opt' => $opt,
+                                                'galleryImages' => $galleryImages,
+                                            ])
+                                        @endforeach
+                                    </div>
+
+                                    <button type="button" class="cf-add-option inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-800 transition-colors">
+                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                                        افزودن گزینه
+                                    </button>
+                                </div>
                             </div>
+                            {{-- ═══ پایان بخش گزینه‌ها ═══ --}}
                         </div>
                     </div>
                 @empty
@@ -277,6 +331,16 @@
     </x-admin.form-section>
     {{-- ═══ پایان فیلدهای سفارشی ═══ --}}
 
+    {{-- قالب ردیف گزینه (برای JS — با placeholder جایگزین می‌شود) --}}
+    <template id="cf-option-row-template">
+        @include('admin.products._custom-field-option-row', [
+            'cfIndex' => '__CF__',
+            'optIndex' => '__OPT__',
+            'opt' => [],
+            'galleryImages' => $galleryImages,
+        ])
+    </template>
+
     <section class="admin-form-section">
         <h3 class="admin-form-section-title">تنظیمات نمایش</h3>
         <div class="flex flex-wrap gap-6">
@@ -294,7 +358,54 @@
 
 @push('scripts')
 <script>
+    
 (function() {
+    function faToEnDigits(s) {
+        return String(s)
+            .replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d))
+            .replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+    }
+
+    function faWords(n) {
+        if (n === 0) return 'صفر';
+        const y = ['','یک','دو','سه','چهار','پنج','شش','هفت','هشت','نه','ده','یازده','دوازده','سیزده','چهارده','پانزده','شانزده','هفده','هجده','نوزده'];
+        const d = ['','','بیست','سی','چهل','پنجاه','شصت','هفتاد','هشتاد','نود'];
+        const s = ['','صد','دویست','سیصد','چهارصد','پانصد','ششصد','هفتصد','هشتصد','نهصد'];
+        function three(x) {
+            let w = [];
+            const h = Math.floor(x / 100), r = x % 100;
+            if (h) w.push(s[h]);
+            if (r) {
+                if (r < 20) w.push(y[r]);
+                else { const t = Math.floor(r / 10), o = r % 10; w.push(d[t] + (o ? ' و ' + y[o] : '')); }
+            }
+            return w.join(' و ');
+        }
+        const scales = [[1e9, 'میلیارد'], [1e6, 'میلیون'], [1e3, 'هزار']];
+        let parts = [];
+        for (const [v, name] of scales) {
+            if (n >= v) { parts.push(three(Math.floor(n / v)) + ' ' + name); n %= v; }
+        }
+        if (n) parts.push(three(n));
+        return parts.join(' و ');
+    }
+
+    document.addEventListener('input', function (e) {
+        const t = e.target;
+        if (!t.matches || !t.matches('input[name="price"], input[name="compare_price"], input[name*="[price]"]')) return;
+        let hint = t.parentElement.querySelector('.price-live-hint');
+        if (!hint) {
+            hint = document.createElement('p');
+            hint.className = 'admin-field-hint price-live-hint';
+            hint.style.cssText = 'font-weight:700;color:#059669;min-height:16px;margin-top:3px';
+            t.parentElement.appendChild(hint);
+        }
+        const raw = faToEnDigits(t.value).replace(/[^\d]/g, '');
+        if (!raw) { hint.textContent = ''; return; }
+        const n = parseInt(raw, 10);
+        const formatted = Number(n).toLocaleString('fa-IR') + ' تومان';
+        hint.textContent = n >= 1000 ? formatted + ' (' + faWords(n) + ' تومان)' : formatted;
+    });
     // ─── Variants Logic ─────────────────────────────
     const sizesInput = document.querySelector('textarea[name="sizes"]');
     const colorsInput = document.querySelector('textarea[name="colors"]');
@@ -432,7 +543,7 @@
     // ─── Custom Fields Logic ──────────────────────────
     const cfContainer = document.getElementById('custom-fields-container');
     const addCfBtn = document.getElementById('add-custom-field-btn');
-    let cfIndex = {{ count($customFields) }};
+    const cfOptionTemplate = document.getElementById('cf-option-row-template');
 
     function getNextCfIndex() {
         const rows = cfContainer.querySelectorAll('.custom-field-row');
@@ -444,6 +555,37 @@
         return max + 1;
     }
 
+    function nextOptionIndex(rowsContainer) {
+        return rowsContainer.querySelectorAll('.cf-option-row').length;
+    }
+
+    function buildOptionRowHtml(cfIndex, optIndex) {
+        return cfOptionTemplate.innerHTML
+            .replaceAll('__CF__', cfIndex)
+            .replaceAll('__OPT__', optIndex);
+    }
+
+    function bindCfTypeToggle(row) {
+        const select = row.querySelector('.cf-type');
+        select.addEventListener('change', function() {
+            const optionsBox = row.querySelector('.cf-options');
+            if (this.value === 'select') {
+                optionsBox.classList.remove('hidden');
+            } else {
+                optionsBox.classList.add('hidden');
+            }
+        });
+    }
+
+    function bindCfRemove(row) {
+        row.querySelector('.remove-cf-btn').addEventListener('click', function() {
+            row.remove();
+            if (cfContainer.querySelectorAll('.custom-field-row').length === 0) {
+                cfContainer.innerHTML = '<div class="text-center py-6 text-zinc-400 text-sm" id="no-custom-fields">هنوز فیلد سفارشی تعریف نشده است.</div>';
+            }
+        });
+    }
+
     function createCustomFieldRow(index) {
         const div = document.createElement('div');
         div.className = 'custom-field-row rounded-lg border border-zinc-200 bg-white p-4';
@@ -453,7 +595,7 @@
             <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
                 <div class="md:col-span-4">
                     <label class="admin-field-label">عنوان فیلد <span class="text-rose-500">*</span></label>
-                    <input type="text" name="custom_fields[${index}][label]" class="admin-input w-full" placeholder="مثال: ایمیل اکانت" required>
+                    <input type="text" name="custom_fields[${index}][label]" class="admin-input w-full" placeholder="مثال: جنس پارچه" required>
                 </div>
                 <div class="md:col-span-3">
                     <label class="admin-field-label">نوع فیلد <span class="text-rose-500">*</span></label>
@@ -461,7 +603,7 @@
                         <option value="text">متن تک‌خطی</option>
                         <option value="email">ایمیل</option>
                         <option value="password">رمز عبور</option>
-                        <option value="select">لیست کشویی</option>
+                        <option value="select">انتخاب از گزینه‌ها</option>
                     </select>
                 </div>
                 <div class="md:col-span-2">
@@ -478,28 +620,30 @@
                     </button>
                 </div>
                 <div class="md:col-span-12 cf-options hidden">
-                    <label class="admin-field-label">گزینه‌ها <span class="text-zinc-400 text-xs font-normal">(هر خط یک گزینه)</span></label>
-                    <textarea name="custom_fields[${index}][options]" rows="3" class="admin-input w-full resize-y" placeholder="1 ماهه&#10;3 ماهه&#10;6 ماهه"></textarea>
+                    <div class="rounded-lg border border-indigo-100 bg-indigo-50/40 p-4 space-y-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                            <div>
+                                <label class="admin-field-label">حالت نمایش گزینه‌ها</label>
+                                <select name="custom_fields[${index}][display_type]" class="admin-select w-full">
+                                    <option value="buttons" selected>دکمه‌ای</option>
+                                    <option value="dropdown">کشویی (دراپ‌داون)</option>
+                                    <option value="swatches">سواتچ (مربع‌های رنگی)</option>
+                                </select>
+                            </div>
+                            <p class="sm:col-span-2 text-xs text-zinc-500 leading-5 pb-1">موجودی و قیمت هر گزینه اختیاری است؛ خالی = از محصول.</p>
+                        </div>
+                        <div class="cf-option-rows space-y-2" data-cf-index="${index}"></div>
+                        <button type="button" class="cf-add-option inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-800 transition-colors">
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                            افزودن گزینه
+                        </button>
+                    </div>
                 </div>
             </div>
         `;
 
-        const select = div.querySelector('.cf-type');
-        select.addEventListener('change', function() {
-            const optionsBox = div.querySelector('.cf-options');
-            if (this.value === 'select') {
-                optionsBox.classList.remove('hidden');
-            } else {
-                optionsBox.classList.add('hidden');
-            }
-        });
-
-        div.querySelector('.remove-cf-btn').addEventListener('click', function() {
-            div.remove();
-            if (cfContainer.querySelectorAll('.custom-field-row').length === 0) {
-                cfContainer.innerHTML = '<div class="text-center py-6 text-zinc-400 text-sm" id="no-custom-fields">هنوز فیلد سفارشی تعریف نشده است.</div>';
-            }
-        });
+        bindCfTypeToggle(div);
+        bindCfRemove(div);
 
         return div;
     }
@@ -513,25 +657,35 @@
             cfContainer.appendChild(createCustomFieldRow(idx));
         });
 
-        // Bind change and remove for existing rows
-        cfContainer.querySelectorAll('.cf-type').forEach(select => {
-            select.addEventListener('change', function() {
-                const optionsBox = this.closest('.custom-field-row').querySelector('.cf-options');
-                if (this.value === 'select') {
-                    optionsBox.classList.remove('hidden');
-                } else {
-                    optionsBox.classList.add('hidden');
-                }
-            });
+        // Bind existing rows
+        cfContainer.querySelectorAll('.custom-field-row').forEach(row => {
+            bindCfTypeToggle(row);
+            bindCfRemove(row);
         });
 
-        cfContainer.querySelectorAll('.remove-cf-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                btn.closest('.custom-field-row').remove();
-                if (cfContainer.querySelectorAll('.custom-field-row').length === 0) {
-                    cfContainer.innerHTML = '<div class="text-center py-6 text-zinc-400 text-sm" id="no-custom-fields">هنوز فیلد سفارشی تعریف نشده است.</div>';
-                }
-            });
+        // ── مدیریت ردیف‌های گزینه (delegation روی کل کانتینر) ──
+        cfContainer.addEventListener('click', function(e) {
+            const addBtn = e.target.closest('.cf-add-option');
+            if (addBtn) {
+                const box = addBtn.closest('.cf-options').querySelector('.cf-option-rows');
+                const cfIdx = box.dataset.cfIndex;
+                box.insertAdjacentHTML('beforeend', buildOptionRowHtml(cfIdx, nextOptionIndex(box)));
+                return;
+            }
+
+            const rmBtn = e.target.closest('.cf-remove-option');
+            if (rmBtn) {
+                rmBtn.closest('.cf-option-row').remove();
+            }
+        });
+
+        // انتخاب تصویر از گالری → مقدار hidden
+        cfContainer.addEventListener('change', function(e) {
+            const sel = e.target.closest('.cf-gallery-select');
+            if (sel) {
+                const hidden = document.getElementById(sel.dataset.target);
+                if (hidden) hidden.value = sel.value;
+            }
         });
     }
 })();

@@ -67,7 +67,7 @@ class ContactMessageController extends Controller
         $reply = $this->messages->adminReply(
             $message,
             auth()->user(),
-            $request->validated('body'),
+            $request->validated('body') ?? '',   // ← فیکس: body خالی/ویس → '' نه null
             $channel,
         );
     
@@ -111,6 +111,28 @@ class ContactMessageController extends Controller
             ->route('admin.messages.index')
             ->with('success', 'همه پیام‌ها خوانده شدند.');
     }
+
+    public function close(ContactMessage $message): RedirectResponse
+{
+    $message->update([
+        'is_closed' => true,
+        'closed_at' => now(),
+        'closed_by' => auth()->id(),
+    ]);
+
+    return back()->with('success', 'گفتگو بسته شد.');
+}
+
+public function reopen(ContactMessage $message): RedirectResponse
+{
+    $message->update([
+        'is_closed' => false,
+        'closed_at' => null,
+        'closed_by' => null,
+    ]);
+
+    return back()->with('success', 'گفتگو باز شد.');
+}
 
     public function destroy(ContactMessage $message): RedirectResponse
     {

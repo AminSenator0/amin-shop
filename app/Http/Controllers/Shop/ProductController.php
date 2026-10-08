@@ -119,8 +119,14 @@ class ProductController extends Controller
 
     public function show(Request $request, string $slug, RecentlyViewedService $recentlyViewed)
     {
-        // ✅ withCount('approvedReviews') اضافه شد
-        $product = Product::with(['category', 'brand', 'images', 'variants', 'attributeValues.attribute'])
+        $product = Product::with([
+                'category',
+                'brand',
+                'images',
+                'variants',
+                'attributeValues.attribute',
+                'customFields.optionDetails',   // ← فیلدهای سفارشی + جزئیات گزینه‌ها
+            ])
             ->withCount('approvedReviews')
             ->withAvg('approvedReviews', 'rating')
             ->where('slug', $slug)

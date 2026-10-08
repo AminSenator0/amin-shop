@@ -12,11 +12,12 @@ class ContactMessageReply extends Model
         'contact_message_id',
         'user_id',
         'body',
-        'attachment',  // ← این خط جدید
+        'attachment',
         'is_from_admin',
         'channel',
         'sms_sent',
         'email_sent',
+        'reply_to',   // ← snapshot نقل‌قول ریپلای: ['sender' => ..., 'body' => ...]
     ];
 
     protected function casts(): array
@@ -26,6 +27,7 @@ class ContactMessageReply extends Model
             'channel' => ReplyChannel::class,
             'sms_sent' => 'boolean',
             'email_sent' => 'boolean',
+            'reply_to' => 'array',
         ];
     }
 

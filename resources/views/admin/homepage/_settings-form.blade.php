@@ -36,6 +36,8 @@
         'homepage_about_snippet_enabled' => 'داستان برند (درباره ما)',
         'homepage_size_guide_enabled' => 'راهنمای سایز',
         'homepage_sticky_nav_enabled' => 'ناوبری سریع چسبان',
+        'homepage_banners_enabled' => 'کالکشن‌های منتخب (فرصت‌های خرید)',
+        'homepage_categories_enabled' => 'کاوش در دسته‌ها',
     ] as $key => $label)
         <label class="admin-slider-active">
             <input type="checkbox" name="{{ $key }}" value="1" @checked(old($key, $settings[$key] ?? '1') == '1')>

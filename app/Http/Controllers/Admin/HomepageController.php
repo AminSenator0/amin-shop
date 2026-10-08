@@ -67,7 +67,7 @@ class HomepageController extends Controller
                 'homepage_contact_section_enabled', 'homepage_map_enabled', 'homepage_video_enabled',
                 'homepage_app_banner_enabled', 'homepage_payment_trust_enabled', 'homepage_why_us_enabled',
                 'homepage_how_it_works_enabled', 'homepage_collections_enabled', 'homepage_about_snippet_enabled',
-                'homepage_size_guide_enabled', 'homepage_sticky_nav_enabled',
+                'homepage_size_guide_enabled', 'homepage_sticky_nav_enabled', 'homepage_banners_enabled', 'homepage_categories_enabled',
             ] as $key) {
                 StoreSetting::set($key, $request->boolean($key) ? '1' : '0', 'homepage', 'boolean');
             }

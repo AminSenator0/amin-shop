@@ -8,6 +8,7 @@ use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductAttribute;
+use App\Models\ProductCustomField;
 use App\Models\ProductImage;
 use App\Services\FileUploadService;
 use App\Services\ProductFormUploadCache;
@@ -57,6 +58,7 @@ class ProductController extends Controller
     public function store(ProductRequest $request)
     {
         $data = $request->validated();
+        $data = $this->fillPriceStockFromOptions($data, $request);
         unset($data['images'], $data['image_sort'], $data['primary_image'], $data['remove_images']);
 
         $data['slug'] = $this->resolveSlug($request, $data['name']);
@@ -71,7 +73,7 @@ class ProductController extends Controller
             $this->syncProductImages($product, $request);
             $this->syncVariants($product, $request);
             $this->syncAttributes($product, $request);
-            $this->syncCustomFields($product, $request); // ← اضافه شده
+            $this->syncCustomFields($product, $request);
         });
         $this->uploadCache->clear();
 
@@ -88,7 +90,7 @@ class ProductController extends Controller
             $this->uploadCache->clear();
         }
 
-        $product->load('images', 'variants', 'attributeValues.attribute', 'customFields'); // ← customFields اضافه شد
+        $product->load('images', 'variants', 'attributeValues.attribute', 'customFields.optionDetails');
         $categories = Category::where('is_active', true)->orderBy('name')->get();
         $brands = Brand::where('is_active', true)->orderBy('name')->get();
         $attributes = ProductAttribute::where('is_active', true)->orderBy('sort_order')->get();
@@ -99,6 +101,7 @@ class ProductController extends Controller
     public function update(ProductRequest $request, Product $product)
     {
         $data = $request->validated();
+        $data = $this->fillPriceStockFromOptions($data, $request);
         unset($data['images'], $data['image_sort'], $data['primary_image'], $data['remove_images']);
 
         $data['slug'] = $request->filled('slug')
@@ -115,7 +118,7 @@ class ProductController extends Controller
             $this->syncProductImages($product, $request);
             $this->syncVariants($product, $request);
             $this->syncAttributes($product, $request);
-            $this->syncCustomFields($product, $request); // ← اضافه شده
+            $this->syncCustomFields($product, $request);
         });
         $this->uploadCache->clear();
 
@@ -172,12 +175,12 @@ class ProductController extends Controller
         return response()->file(Storage::disk('local')->path($path));
     }
 
-    // ─── متد جدید: همگام‌سازی Custom Fields ──────────────────
+    // ─── همگام‌سازی Custom Fields (همراه جزئیات گزینه‌ها) ──────
     private function syncCustomFields(Product $product, Request $request): void
     {
         $fields = $request->input('custom_fields', []);
 
-        // حذف فیلدهای قبلی
+        // حذف فیلدهای قبلی (به‌همراه جزئیات گزینه‌ها — cascade)
         $product->customFields()->delete();
 
         foreach ($fields as $index => $field) {
@@ -187,27 +190,80 @@ class ProductController extends Controller
             }
 
             $type = $field['type'] ?? 'text';
-            $options = null;
 
-            // اگر نوع select بود، گزینه‌ها رو از textarea پارس کن (هر خط یک گزینه)
-            if ($type === 'select' && !empty($field['options'])) {
-                $lines = preg_split('/[\r\n]+/', $field['options']);
-                $options = array_values(array_filter(array_map('trim', $lines)));
-                $options = $options !== [] ? $options : null;
+            // ردیف‌های گزینه فقط آن‌هایی که نام دارند
+            $optionRows = array_values(array_filter(
+                $field['option_rows'] ?? [],
+                fn ($r) => trim($r['value'] ?? '') !== ''
+            ));
+
+            $options = null;
+            if ($type === 'select') {
+                if ($optionRows !== []) {
+                    // منبع اصلی گزینه‌ها = ردیف‌ها
+                    $options = array_values(array_unique(array_map(fn ($r) => trim($r['value']), $optionRows)));
+                } elseif (! empty($field['options'])) {
+                    // سازگاری با فرمت قدیمی textarea (هر خط یک گزینه)
+                    $lines = preg_split('/[\r\n]+/', $field['options']);
+                    $options = array_values(array_filter(array_map('trim', $lines)));
+                    $options = $options !== [] ? $options : null;
+                }
             }
 
-            $product->customFields()->create([
+            $customField = $product->customFields()->create([
                 'label' => $label,
                 'type' => $type,
+                'display_type' => $type === 'select' ? ($field['display_type'] ?? 'buttons') : 'buttons',
                 'options' => $options,
-                'is_required' => !empty($field['is_required']),
+                'is_required' => ! empty($field['is_required']),
                 'sort_order' => (int) ($field['sort_order'] ?? $index),
+            ]);
+
+            if ($type === 'select' && $optionRows !== []) {
+                $this->syncFieldOptions($product, $customField, $optionRows, $request, (int) $index);
+            }
+        }
+    }
+
+    private function syncFieldOptions(Product $product, ProductCustomField $field, array $rows, Request $request, int $fieldIndex): void
+    {
+        $sort = 0;
+
+        foreach ($rows as $optIndex => $row) {
+            $value = trim($row['value']);
+            $stock = ($row['stock'] ?? '') !== '' ? (int) $row['stock'] : null;
+            $price = ($row['price'] ?? '') !== '' ? (int) $row['price'] : null;
+            $image = $row['image'] ?? null;
+
+            // ۱) آپلود فایل جدید اولویت دارد
+            $file = $request->file("custom_fields.{$fieldIndex}.option_rows.{$optIndex}.image_file");
+            if ($file && $file->isValid()) {
+                $image = $this->uploader->upload($file, 'product');
+            } elseif ($image) {
+                // ۲) انتخاب از گالری — فقط اگر واقعاً متعلق به همین محصول باشد
+                $belongs = $product->images()->where('path', $image)->exists();
+                if (! $belongs) {
+                    $image = null;
+                }
+            }
+
+            // همه‌چیز خالی بود → ردیف جزئیات لازم نیست (رفتار قدیمی، بدون موجودی/قیمت اختصاصی)
+            if ($stock === null && $price === null && ! $image) {
+                continue;
+            }
+
+            $field->optionDetails()->create([
+                'value' => $value,
+                'stock' => $stock,
+                'price' => $price,
+                'image' => $image,
+                'sort_order' => $sort++,
             ]);
         }
     }
-    // ─── پایان متد جدید ───────────────────────────────────────
+    // ─── پایان همگام‌سازی Custom Fields ────────────────────────
 
-    // ─── متد Attribute (قبلی) ─────────────────────────────────
+    // ─── متد Attribute ─────────────────────────────────────────
     private function syncAttributes(Product $product, Request $request): void
     {
         $attributes = $request->input('attributes', []);
@@ -226,9 +282,9 @@ class ProductController extends Controller
             }
         }
     }
-    // ─── پایان متد Attribute ─────────────────────────────────
+    // ─── پایان متد Attribute ───────────────────────────────────
 
-    // ─── متد واریانت (قبلی) ──────────────────────────────────
+    // ─── متد واریانت ─────────────────────────────────────────
     private function syncVariants(Product $product, Request $request): void
     {
         $sizes = $product->sizes ?? [];
@@ -266,8 +322,30 @@ class ProductController extends Controller
         $product->variants()->whereNotIn('id', $syncedIds)->delete();
         $product->update(['stock' => $product->variants()->sum('stock')]);
     }
-    // ─── پایان متد واریانت ───────────────────────────────────
+    // ─── پایان متد واریانت ─────────────────────────────────────
 
+
+    // این متد را به کلاس اضافه کن:
+private function fillPriceStockFromOptions(array $data, Request $request): array
+{
+    $optionRows = collect($request->input('custom_fields', []))
+        ->pluck('option_rows')
+        ->filter()
+        ->flatten(1)
+        ->filter(fn ($r) => trim($r['value'] ?? '') !== '');
+
+    if (blank($data['price'] ?? null)) {
+        $prices = $optionRows->pluck('price')->filter(fn ($p) => $p !== null && $p !== '')->map(fn ($p) => (int) $p);
+        $data['price'] = $prices->isNotEmpty() ? (int) $prices->min() : 0;
+    }
+
+    if (blank($data['stock'] ?? null)) {
+        $stocks = $optionRows->pluck('stock')->filter(fn ($s) => $s !== null && $s !== '')->map(fn ($s) => (int) $s);
+        $data['stock'] = $stocks->isNotEmpty() ? (int) $stocks->sum() : 0;
+    }
+
+    return $data;
+}
     private function syncProductImages(Product $product, Request $request): void
     {
         $sortRaw = $request->input('image_sort', '[]');

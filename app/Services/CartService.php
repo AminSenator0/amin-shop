@@ -32,7 +32,7 @@ class CartService
         // ✅ همه محصولات رو یه‌جا لود کن (به جای find توی loop)
         $productIds = collect($cart)->pluck('product_id')->unique()->values()->all();
 
-        $products = Product::with(['category', 'customFields', 'images'])
+        $products = Product::with(['category', 'customFields.optionDetails', 'images'])
             ->whereIn('id', $productIds)
             ->get()
             ->keyBy('id');
@@ -48,6 +48,9 @@ class CartService
             $color = $item['color'] ?? null;
             $customFields = $item['custom_fields'] ?? [];
 
+            // قیمت snapshot شده هنگام افزودن؛ سبد‌های قدیمی بدون snapshot → قیمت پایه محصول
+            $unitPrice = isset($item['unit_price']) ? (int) $item['unit_price'] : (int) $product->price;
+
             return [
                 'key' => $key,
                 'product' => $product,
@@ -57,7 +60,8 @@ class CartService
                 'custom_fields' => $customFields,
                 'custom_fields_display' => $this->enrichCustomFields($product, $customFields),
                 'options_label' => $product->optionsLabel($size, $color),
-                'subtotal' => $product->price * $item['quantity'],
+                'price' => $unitPrice,
+                'subtotal' => $unitPrice * $item['quantity'],
             ];
         })->filter()->values();
     }
@@ -78,7 +82,6 @@ class CartService
             ->sum('quantity');
     }
 
-    // ✅ کوئری سبک فقط برای price — بدون لود relation
     public function subtotal(): int
     {
         $cart = session(self::SESSION_KEY, []);
@@ -91,13 +94,14 @@ class CartService
         $prices = Product::whereIn('id', $productIds)->pluck('price', 'id');
 
         return collect($cart)->sum(function ($item) use ($prices) {
-            return ($prices->get($item['product_id'], 0) * $item['quantity']);
+            $unitPrice = isset($item['unit_price']) ? (int) $item['unit_price'] : (int) $prices->get($item['product_id'], 0);
+            return $unitPrice * $item['quantity'];
         });
     }
 
     public function add(int $productId, int $quantity = 1, ?string $size = null, ?string $color = null, array $customFields = []): void
     {
-        $product = Product::with('customFields')->findOrFail($productId);
+        $product = Product::with('customFields.optionDetails')->findOrFail($productId);
 
         if (! $product->is_active || ! $product->isInStock()) {
             throw new \RuntimeException('محصول موجود نیست.');
@@ -122,9 +126,19 @@ class CartService
         $currentQty = $cart[$key]['quantity'] ?? 0;
         $newQty = $currentQty + $quantity;
 
+        // موجودی محصول/واریانت (رفتار قبلی)
         if (! $product->hasEnoughStock($newQty, $size, $color)) {
             throw new \RuntimeException('تعداد درخواستی بیش از موجودی انبار است.');
         }
+
+        // موجودی گزینه‌های سفارشی (فقط برای گزینه‌هایی که موجودی اختصاصی دارند)
+        $optionStockLimit = $this->optionStockLimit($product, $validatedCustomFields);
+        if ($optionStockLimit !== null && $newQty > $optionStockLimit) {
+            throw new \RuntimeException('تعداد درخواستی بیش از موجودی گزینه انتخاب‌شده است.');
+        }
+
+        // قیمت نهایی واحد: اگر گزینه‌ای قیمت اختصاصی دارد → همان؛ وگرنه قیمت پایه
+        $unitPrice = $this->resolveUnitPrice($product, $validatedCustomFields);
 
         $cart[$key] = [
             'product_id' => $productId,
@@ -132,6 +146,7 @@ class CartService
             'size' => $size,
             'color' => $color,
             'custom_fields' => $validatedCustomFields,
+            'unit_price' => $unitPrice,
         ];
 
         session([self::SESSION_KEY => $cart]);
@@ -148,12 +163,18 @@ class CartService
         if ($quantity <= 0) {
             unset($cart[$lineKey]);
         } else {
-            $product = Product::findOrFail($cart[$lineKey]['product_id']);
+            $product = Product::with('customFields.optionDetails')->findOrFail($cart[$lineKey]['product_id']);
             $size = $cart[$lineKey]['size'] ?? null;
             $color = $cart[$lineKey]['color'] ?? null;
+            $customFields = $cart[$lineKey]['custom_fields'] ?? [];
 
             if (! $product->hasEnoughStock($quantity, $size, $color)) {
                 throw new \RuntimeException('تعداد درخواستی بیش از موجودی انبار است.');
+            }
+
+            $optionStockLimit = $this->optionStockLimit($product, $customFields);
+            if ($optionStockLimit !== null && $quantity > $optionStockLimit) {
+                throw new \RuntimeException('تعداد درخواستی بیش از موجودی گزینه انتخاب‌شده است.');
             }
 
             $cart[$lineKey]['quantity'] = $quantity;
@@ -192,6 +213,7 @@ class CartService
         }
 
         $products = Product::query()
+            ->with('customFields.optionDetails')
             ->whereIn('id', $productIds)
             ->get()
             ->keyBy('id');
@@ -210,11 +232,20 @@ class CartService
             $size = $item->options['size'] ?? null;
             $color = $item->options['color'] ?? null;
             $customFields = $item->custom_fields ?? [];
+
+            // snapshot قیمت از آیتم سفارش (فاز ۵ آن را ذخیره می‌کند)؛ نبود → قیمت پایه
+$unitPrice = (int) ($item->price ?? $product->price);
+
             $key = $this->lineKey((int) $item->product_id, $size, $color, $customFields);
             $quantity = max((int) ($cart[$key]['quantity'] ?? 0), (int) $item->quantity);
 
             if (! $product->hasEnoughStock($quantity, $size, $color)) {
                 $quantity = max(1, (int) $product->variantStock($size, $color));
+            }
+
+            $optionStockLimit = $this->optionStockLimit($product, $customFields);
+            if ($optionStockLimit !== null && $quantity > $optionStockLimit) {
+                $quantity = max(1, $optionStockLimit);
             }
 
             if ($quantity < 1) {
@@ -227,6 +258,7 @@ class CartService
                 'size' => $size,
                 'color' => $color,
                 'custom_fields' => $customFields,
+                'unit_price' => $unitPrice,
             ];
         }
 
@@ -236,7 +268,7 @@ class CartService
     private function validateCustomFields(Product $product, array $inputFields): array
     {
         if (! $product->relationLoaded('customFields')) {
-            $product->load('customFields');
+            $product->load('customFields.optionDetails');
         }
 
         $validated = [];
@@ -256,10 +288,18 @@ class CartService
             }
 
             if (filled($value)) {
-                $validated[$field->id] = [
+                $entry = [
                     'label' => $field->label,
                     'value' => $value,
                 ];
+
+                // snapshot قیمت گزینه (اگر ادمین قیمت اختصاصی تعریف کرده باشد)
+                $optionDetail = $field->optionDetails->firstWhere('value', $value);
+                if ($optionDetail && $optionDetail->hasCustomPrice()) {
+                    $entry['price'] = (int) $optionDetail->price;
+                }
+
+                $validated[$field->id] = $entry;
             }
         }
 
@@ -279,9 +319,72 @@ class CartService
                 'id' => $fieldId,
                 'label' => $data['label'] ?? 'فیلد سفارشی',
                 'value' => $data['value'] ?? '',
+                'price' => $data['price'] ?? null,
             ];
         }
 
         return $enriched;
+    }
+
+    /**
+     * حداقل موجودی میان گزینه‌های انتخاب‌شده‌ای که موجودی اختصاصی دارند.
+     * null = هیچ گزینه‌ای موجودی اختصاصی ندارد → محدودیت از سمت گزینه نداریم.
+     */
+    private function optionStockLimit(Product $product, array $customFields): ?int
+    {
+        if (empty($customFields) || $product->customFields->isEmpty()) {
+            return null;
+        }
+
+        $limits = [];
+
+        foreach ($product->customFields as $field) {
+            if ($field->type !== 'select') {
+                continue;
+            }
+
+            foreach ($customFields as $fieldId => $data) {
+                if ((int) $fieldId !== (int) $field->id) {
+                    continue;
+                }
+
+                $optionDetail = $field->optionDetails->firstWhere('value', $data['value'] ?? null);
+
+                if ($optionDetail && $optionDetail->hasCustomStock()) {
+                    $limits[] = (int) $optionDetail->stock;
+                }
+            }
+        }
+
+        return $limits !== [] ? min($limits) : null;
+    }
+
+    /**
+     * قیمت واحد نهایی: آخرین گزینه انتخاب‌شده‌ای که قیمت اختصاصی دارد، قیمت را تعیین می‌کند.
+     * هیچ‌کدام نداشتند → قیمت پایه محصول.
+     */
+    private function resolveUnitPrice(Product $product, array $customFields): int
+    {
+        $price = (int) $product->price;
+
+        foreach ($product->customFields as $field) {
+            if ($field->type !== 'select') {
+                continue;
+            }
+
+            foreach ($customFields as $fieldId => $data) {
+                if ((int) $fieldId !== (int) $field->id) {
+                    continue;
+                }
+
+                $optionDetail = $field->optionDetails->firstWhere('value', $data['value'] ?? null);
+
+                if ($optionDetail && $optionDetail->hasCustomPrice()) {
+                    $price = (int) $optionDetail->price;
+                }
+            }
+        }
+
+        return $price;
     }
 }

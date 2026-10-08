@@ -16,10 +16,13 @@ class ContactMessage extends Model
         'phone',
         'subject',
         'message',
-        'attachment',  // ← این خط جدید
+        'attachment',
         'is_read',
         'has_unread_reply_for_user',
         'last_replied_at',
+        'is_closed',
+        'closed_at',
+        'closed_by',
     ];
 
     protected function casts(): array
@@ -28,6 +31,8 @@ class ContactMessage extends Model
             'is_read' => 'boolean',
             'has_unread_reply_for_user' => 'boolean',
             'last_replied_at' => 'datetime',
+            'is_closed' => 'boolean',
+            'closed_at' => 'datetime',
         ];
     }
 
@@ -39,6 +44,16 @@ class ContactMessage extends Model
     public function replies(): HasMany
     {
         return $this->hasMany(ContactMessageReply::class)->orderBy('created_at');
+    }
+
+    public function closedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'closed_by');
+    }
+
+    public function isClosed(): bool
+    {
+        return (bool) $this->is_closed;
     }
 
     public function scopeUnread(Builder $query): Builder

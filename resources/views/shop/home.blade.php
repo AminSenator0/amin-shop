@@ -36,7 +36,7 @@
     }
 
     $homeNavSections = array_values(array_filter([
-        $categories->count() ? ['id' => 'home-categories', 'label' => 'دسته‌ها'] : null,
+        $store['homepageCategoriesEnabled'] && $categories->count() ? ['id' => 'home-categories', 'label' => 'دسته‌ها'] : null, // ← اضافه شد
         $store['homepageCollectionsEnabled'] && ! empty($homeCollections) ? ['id' => 'home-collections', 'label' => 'کالکشن'] : null,
         $featuredProducts->count() ? ['id' => 'home-featured', 'label' => 'ویژه'] : null,
         $store['homepageFlashSaleEnabled'] && $flashSaleEndsAt && $flashSaleProducts->isNotEmpty() ? ['id' => 'home-flash-sale', 'label' => 'حراج'] : null,
@@ -298,7 +298,7 @@
 @endif
 
 {{-- ── Categories ── --}}
-@if($categories->count())
+@if($categories->count() && $store['homepageCategoriesEnabled']) {{-- ← اضافه شد --}}
     <section id="home-categories" class="home-section home-section--lead home-categories-section scroll-mt-28">
         <div class="home-section-container">
             <div class="home-section-header">
@@ -369,7 +369,7 @@
 @include('shop.partials.home-extras-mid')
 
 {{-- ── Promo banners ── --}}
-@if($banners->isNotEmpty())
+@if($banners->isNotEmpty() && $store['homepageBannersEnabled']) {{-- ← اضافه شد --}}
     <section class="home-section home-banners-section" aria-label="پیشنهادهای ویژه">
         <div class="home-section-container">
             <div class="home-section-header">

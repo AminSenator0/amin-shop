@@ -18,7 +18,10 @@ class ContactMessageReplyRequest extends FormRequest
         return [
             'body' => ['required', 'string', 'max:2000'],
             'channel' => ['required', Rule::enum(ReplyChannel::class)],
-            'attachment' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf,doc,docx', 'max:5120'], // ← جدید
+            'attachment' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf,doc,docx', 'max:5120'],
+            'reply_to' => ['nullable', 'array'],
+            'reply_to.sender' => ['nullable', 'string', 'max:100'],
+            'reply_to.body' => ['nullable', 'string', 'max:500'],
         ];
     }
 

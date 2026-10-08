@@ -225,6 +225,8 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::post('messages/{message}/reply', [ContactMessageController::class, 'reply'])->name('messages.reply');
     Route::patch('messages/{message}/unread', [ContactMessageController::class, 'markUnread'])->name('messages.unread');
     Route::delete('messages/{message}', [ContactMessageController::class, 'destroy'])->name('messages.destroy');
+Route::patch('messages/{message}/close', [ContactMessageController::class, 'close'])->name('messages.close');
+Route::patch('messages/{message}/reopen', [ContactMessageController::class, 'reopen'])->name('messages.reopen');
     Route::get('users/export', [AdminUserController::class, 'export'])->name('users.export');
     Route::get('users/create', [AdminUserController::class, 'create'])->name('users.create');
     Route::post('users', [AdminUserController::class, 'store'])->name('users.store');
