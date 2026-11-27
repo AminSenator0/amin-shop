@@ -67,42 +67,69 @@ class ReturnController extends Controller
     {
         $validated = $request->validated();
         $status = ReturnStatus::from($validated['status']);
+
         $updates = [
             'status' => $status,
             'admin_note' => $validated['admin_note'] ?? null,
         ];
 
-        if (in_array($status, [ReturnStatus::Approved, ReturnStatus::Rejected, ReturnStatus::Refunded])) {
+        if (in_array($status, [
+            ReturnStatus::Approved,
+            ReturnStatus::Rejected,
+            ReturnStatus::Refunded,
+        ], true)) {
             $updates['processed_at'] = now();
         }
 
         DB::transaction(function () use ($orderReturn, $updates, $status) {
-            $locked = OrderReturn::lockForUpdate()->findOrFail($orderReturn->id);
+            $locked = OrderReturn::with('order.user')
+                ->lockForUpdate()
+                ->findOrFail($orderReturn->id);
 
-            // آیا قبلاً بازپرداخت شده؟ (جلوگیری از دوبار واریز)
+            // جلوگیری از واریز مجدد
             $alreadyRefunded = $locked->status === ReturnStatus::Refunded;
 
             $locked->update($updates);
 
             if ($status === ReturnStatus::Refunded && ! $alreadyRefunded) {
-                $locked->order->update(['payment_status' => PaymentStatus::Refunded]);
+                $grossAmount = (int) $locked->refund_amount;
+                $deduction = $locked->deductionAmount();
+                $netAmount = $locked->netRefundAmount();
 
-                // ⬇️⬇️⬇️ بازگشت وجه به کیف پول مشتری ⬇️⬇️⬇️
-                $wallet = app(\App\Services\WalletService::class)
-                    ->getOrCreateForUser($locked->order->user);
+                if ($netAmount <= 0) {
+                    throw new \RuntimeException(
+                        'مبلغ قابل واریز برای این مرجوعی صفر است.'
+                    );
+                }
 
-                app(\App\Services\WalletService::class)->credit(
-                    $wallet,
-                    (int) $locked->refund_amount,
-                    \App\Enums\WalletReferenceType::OrderReturnRefund,
-                    $locked->id,
-                    'بازگشت وجه مرجوعی سفارش '.$locked->order->order_number,
-                    auth()->user() // ادمین انجام‌دهنده در دفتر کل ثبت می‌شود
+                $locked->order->update([
+                    'payment_status' => PaymentStatus::Refunded,
+                ]);
+
+                $walletService = app(WalletService::class);
+                $wallet = $walletService->getOrCreateForUser(
+                    $locked->order->user
                 );
-                // ⬆️⬆️⬆️ پایان بازگشت وجه ⬆️⬆️⬆️
+
+                $walletService->credit(
+                    $wallet,
+                    $netAmount,
+                    WalletReferenceType::OrderReturnRefund,
+                    $locked->id,
+                    "بازگشت وجه مرجوعی سفارش {$locked->order->order_number}"
+                    . " — مبلغ پایه: " . number_format($grossAmount)
+                    . " تومان، کسر ۳۰٪: " . number_format($deduction)
+                    . " تومان",
+                    auth()->user()
+                );
             }
         });
 
-        return back()->with('success', 'وضعیت مرجوعی به‌روزرسانی شد.');
+        return back()->with(
+            'success',
+            $status === ReturnStatus::Refunded
+                ? 'بازگشت وجه انجام شد؛ ۳۰٪ کسر و مابقی به کیف پول مشتری واریز شد.'
+                : 'وضعیت مرجوعی به‌روزرسانی شد.'
+        );
     }
 }
