@@ -70,8 +70,13 @@ class ReturnController extends Controller
 
         $updates = [
             'status' => $status,
-            'admin_note' => $validated['admin_note'] ?? null,
         ];
+
+        // فقط وقتی پیام جدیدی نوشته شده، آن را جایگزین کن.
+        // در غیر این صورت پیام قبلی برای کاربر حفظ می‌شود.
+        if (filled($validated['admin_note'] ?? null)) {
+            $updates['admin_note'] = $validated['admin_note'];
+        }
 
         if (in_array($status, [
             ReturnStatus::Approved,
