@@ -39,9 +39,9 @@ class ReturnController extends Controller
             ->filter(fn ($qty) => $qty > 0);
 
         $isPartial = $itemQuantities->isNotEmpty();
-        $refundAmount = $isPartial
+         $refundAmount = $isPartial
             ? $this->orders->calculatePartialRefundAmount($order, $itemQuantities->all())
-            : $order->total;
+            : $order->returnablePaidAmount();
 
         DB::transaction(function () use ($request, $order, $refundAmount, $isPartial, $itemQuantities) {
             $return = OrderReturn::create([
