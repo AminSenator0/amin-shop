@@ -56,7 +56,7 @@ class ReturnController extends Controller
         OrderReturn::create([
             'order_id' => $order->id,
             'reason' => $data['reason'],
-            'refund_amount' => $data['refund_amount'] ?? $order->total,
+           'refund_amount' => $data['refund_amount'] ?? $order->returnablePaidAmount(),
             'status' => ReturnStatus::Pending,
         ]);
 

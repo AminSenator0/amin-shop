@@ -19,7 +19,12 @@ class StoreReturnRequest extends FormRequest
 
         return [
             'reason' => ['required', 'string', 'max:500'],
-            'refund_amount' => ['nullable', 'integer', 'min:0', 'max:'.$order->total],
+            'refund_amount' => [
+    'nullable',
+    'integer',
+    'min:0',
+    'max:' . $order->returnablePaidAmount(),
+],
         ];
     }
 }
