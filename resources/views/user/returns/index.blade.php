@@ -44,7 +44,31 @@
                     </div>
                 @endif
                 <div class="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm">
-                    <span class="text-shop-muted">مبلغ درخواستی: <span class="font-bold text-shop-primary">{{ format_price($return->refund_amount) }}</span></span>
+                    <div class="space-y-1 text-sm">
+                        <p class="text-shop-muted">
+                            مبلغ پایهٔ مرجوعی:
+                            <span class="font-bold text-shop-primary">
+                                {{ format_price($return->refund_amount) }}
+                            </span>
+                        </p>
+
+                        <p class="text-xs text-shop-muted">
+                            کسر ۳۰٪:
+                            {{ format_price($return->deductionAmount()) }}
+
+                            <span class="mx-1">|</span>
+
+                            @if($return->status === \App\Enums\ReturnStatus::Refunded)
+                                واریزشده به کیف پول:
+                            @else
+                                قابل واریز پس از تأیید:
+                            @endif
+
+                            <span class="font-bold text-emerald-600">
+                                {{ format_price($return->netRefundAmount()) }}
+                            </span>
+                        </p>
+                    </div>
                     @if($return->processed_at)
                         <span class="text-shop-muted">بررسی‌شده در {{ format_jalali($return->processed_at, 'Y/m/d') }}</span>
                     @endif
