@@ -64,15 +64,24 @@ class UserPresaleOrderController extends Controller
         $service = app(PresalePaymentService::class);
 
         // کیف پول
+        // کیف پول
         if ($validated['payment_method'] === 'wallet') {
-            $service->payInstallmentWithWallet($order, $validated['amount']);
+            try {
+                $service->payInstallmentWithWallet($order, $validated['amount']);
+            } catch (\RuntimeException $e) {
+                return back()->with('error', $e->getMessage());
+            }
             return redirect()->route('user.presale-orders.show', $order)
                 ->with('success', 'پرداخت قسط با موفقیت انجام شد.');
         }
 
         // زرین‌پال
         if ($validated['payment_method'] === 'online') {
-            $result = $service->requestInstallmentZarinpal($order, $validated['amount']);
+            try {
+                $result = $service->requestInstallmentZarinpal($order, $validated['amount']);
+            } catch (\RuntimeException $e) {
+                return back()->with('error', $e->getMessage());
+            }
             return redirect()->away($result['redirect_url']);
         }
 
@@ -111,18 +120,26 @@ return redirect()->route('c2c.show', $order);
         $method = $order->payment_method ?? 'online';
 
         // کیف پول
+        // کیف پول
         if ($method === 'wallet') {
-            $service->payWithWallet($order, $order->payable, 'presale');
+            try {
+                $service->payWithWallet($order, $order->payable, 'presale');
+            } catch (\RuntimeException $e) {
+                return back()->with('error', $e->getMessage());
+            }
             return redirect()->route('user.orders.show', $order)
                 ->with('success', 'پرداخت بیعانه با موفقیت انجام شد.');
         }
 
         // زرین‌پال
         if ($method === 'online') {
-            $result = $service->requestZarinpalDeposit($order, $order->payable);
+            try {
+                $result = $service->requestZarinpalDeposit($order, $order->payable);
+            } catch (\RuntimeException $e) {
+                return back()->with('error', $e->getMessage());
+            }
             return redirect()->away($result['redirect_url']);
         }
-
         // کارت به کارت
         if ($method === 'c2c') {
             session()->put('presale_installment_amount', $order->payable);

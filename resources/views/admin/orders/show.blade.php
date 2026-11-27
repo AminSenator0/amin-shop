@@ -165,7 +165,6 @@
                 <svg class="h-4 w-4 shrink-0 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                 <span>تغییر وضعیت</span>
             </h3>
-            @if(! $order->isPresale())
             <form method="POST" action="{{ route('admin.orders.status', $order) }}" class="space-y-2">
                 @csrf @method('PATCH')
                 <select name="status" class="admin-select w-full">
@@ -183,12 +182,6 @@
                 </label>
                 <button type="submit" class="admin-btn-primary w-full">به‌روزرسانی وضعیت</button>
             </form>
-            @else
-            <div class="rounded-xl bg-amber-50 border border-amber-200 p-3">
-                <p class="text-xs text-amber-700 font-bold">سفارش پیش‌فروش</p>
-                <p class="text-xs text-amber-600 mt-1">وضعیت سفارش بر اساس پرداخت‌ها و تعیین قیمت نهایی به‌صورت خودکار تغییر می‌کند.</p>
-            </div>
-            @endif
         </div>
         <div>
             <h3 class="flex items-center gap-2 text-sm font-bold text-zinc-500 mb-3">

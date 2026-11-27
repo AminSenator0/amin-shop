@@ -352,7 +352,10 @@ class PresalePaymentService
             return (int) $order->payable;
         }
 
-        return max(0, $final + $penalty - (int) $order->presale_total_paid);
+        $installmentsPaid = max(0, (int) $order->presale_total_paid - (int) $order->payable);
+        $baseRemaining = max(0, $final + $penalty - (int) $order->subtotal);
+
+        return max(0, $baseRemaining - $installmentsPaid);
     }
 
     private function validateInstallment(Order $order, int $amount): void
