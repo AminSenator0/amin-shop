@@ -384,19 +384,52 @@
                             <span class="text-xs text-zinc-500">{{ format_jalali($return->created_at) }}</span>
                         </div>
                         <p class="text-sm text-zinc-700">{{ $return->reason }}</p>
-                        @if($return->status === \App\Enums\ReturnStatus::Pending)
-                            <form method="POST" action="{{ route('admin.returns.status', $return) }}" class="mt-3 space-y-2">
-                                @csrf @method('PATCH')
-                                <select name="status" class="admin-select w-full text-xs">
-                                    <option value="approved">تأیید</option>
-                                    <option value="rejected">رد</option>
-                                    <option value="refunded">بازگشت وجه</option>
+                        @if(in_array($return->status, [
+                            \App\Enums\ReturnStatus::Pending,
+                            \App\Enums\ReturnStatus::Approved,
+                        ], true))
+                            <form
+                                method="POST"
+                                action="{{ route('admin.returns.status', $return) }}"
+                                class="mt-3 space-y-2"
+                            >
+                                @csrf
+                                @method('PATCH')
+
+                                <select name="status" class="admin-select w-full text-xs" required>
+                                    @if($return->status === \App\Enums\ReturnStatus::Pending)
+                                        <option value="approved">تأیید درخواست</option>
+                                        <option value="rejected">رد درخواست</option>
+                                        <option value="refunded">بازگشت وجه</option>
+                                    @else
+                                        <option value="rejected">تغییر به رد شده</option>
+                                        <option value="refunded">بازگشت وجه به کیف پول</option>
+                                    @endif
                                 </select>
-                                <input type="text" name="admin_note" placeholder="یادداشت مدیر..." class="admin-input w-full text-xs">
-                                <button type="submit" class="admin-btn-primary w-full text-xs py-2">ثبت تصمیم</button>
+
+                                <input
+                                    type="text"
+                                    name="admin_note"
+                                    value="{{ old('admin_note', $return->admin_note) }}"
+                                    placeholder="مثلاً: برای پیگیری روند مرجوعی تیکت ثبت کنید"
+                                    class="admin-input w-full text-xs"
+                                >
+
+                                <p class="text-[11px] leading-5 text-zinc-500">
+                                    این پیام در پنل مرجوعی‌های کاربر نمایش داده می‌شود.
+                                </p>
+
+                                <button
+                                    type="submit"
+                                    class="admin-btn-primary w-full py-2 text-xs"
+                                >
+                                    ثبت تصمیم
+                                </button>
                             </form>
                         @elseif($return->admin_note)
-                            <p class="text-xs text-zinc-500 mt-2">{{ $return->admin_note }}</p>
+                            <p class="mt-2 text-xs text-zinc-500">
+                                {{ $return->admin_note }}
+                            </p>
                         @endif
                     </div>
                 @endforeach
