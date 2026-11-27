@@ -43,14 +43,14 @@
         :value="$stats['today']"
         color="blue"
         :href="route('admin.orders.index', array_merge($filterParams, ['date_from' => today()->toDateString(), 'date_to' => today()->toDateString()]))"
-        icon='<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>'
+        icon='<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 00-2-2z" /></svg>'
     />
 </div>
 
 <div class="admin-page-header">
     <div class="flex flex-wrap items-center gap-2 mb-4">
         <a href="{{ route('admin.orders.create') }}" class="admin-btn-primary text-sm">ثبت سفارش دستی</a>
-        <a href="{{ route('admin.orders.export', request()->query()) }}" class="admin-btn-secondary text-sm">خروجی CSV</a>
+        <button type="button" id="export-excel-button" class="admin-btn-secondary text-sm">خروجی اکسل</button>
         @if($stats['unread'] > 0)
             <form method="POST" action="{{ route('admin.orders.mark-all-read') }}" class="ms-auto">
                 @csrf @method('PATCH')
@@ -235,4 +235,171 @@
     </table>
 </div>
 <x-admin.pagination :paginator="$orders" class="mt-6 rounded-2xl border border-zinc-200/80 bg-white px-4 py-4 shadow-sm sm:px-6" />
+
+{{-- مودال خروجی اکسل سفارشات --}}
+@php
+    $exportBaseParams = array_diff_key($filterParams, array_flip(['date_from', 'date_to']));
+    $jalaliMonthStart = \Carbon\Carbon::instance(\Hekmatinasser\Verta\Verta::now()->copy()->startMonth()->datetime())->format('Y-m-d');
+    $exportPresets = [
+        ['label' => 'امروز', 'from' => today()->toDateString(), 'to' => today()->toDateString()],
+        ['label' => '۷ روز اخیر', 'from' => today()->subDays(6)->toDateString(), 'to' => today()->toDateString()],
+        ['label' => '۳۰ روز اخیر', 'from' => today()->subDays(29)->toDateString(), 'to' => today()->toDateString()],
+        ['label' => 'ماه جاری', 'from' => $jalaliMonthStart, 'to' => today()->toDateString()],
+    ];
+@endphp
+<div id="export-modal" class="export-modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="export-modal-title">
+    <div class="export-modal-box">
+        <div class="export-modal-head">
+            <h3 id="export-modal-title">خروجی اکسل سفارشات</h3>
+            <button type="button" data-close-export-modal class="export-modal-close" aria-label="بستن">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+
+        <p class="export-modal-desc">
+            فیلترهای فعلی صفحه (وضعیت، جستجو و…) روی خروجی اعمال می‌شوند. اگر بازه‌ای انتخاب نکنید، همه سفارشات در فایل قرار می‌گیرند.
+        </p>
+
+        <div class="export-modal-presets">
+            @foreach($exportPresets as $preset)
+                <a href="{{ route('admin.orders.export', array_merge($exportBaseParams, ['date_from' => $preset['from'], 'date_to' => $preset['to']])) }}" class="export-preset-link">{{ $preset['label'] }}</a>
+            @endforeach
+            <a href="{{ route('admin.orders.export', $exportBaseParams) }}" class="export-preset-link export-preset-all">همه سفارشات</a>
+        </div>
+
+        <div class="export-modal-divider"><span>یا بازه دلخواه</span></div>
+
+        <form method="GET" action="{{ route('admin.orders.export') }}">
+            @foreach($exportBaseParams as $name => $value)
+                <input type="hidden" name="{{ $name }}" value="{{ $value }}">
+            @endforeach
+
+            <div class="export-modal-dates">
+                <div>
+                    <label class="admin-field-label text-xs mb-1 block">از تاریخ</label>
+                    <input type="text" name="date_from" value="{{ request('date_from') ? format_jalali(request('date_from'), 'Y/m/d', false) : '' }}" data-jalali-date class="admin-input text-sm" dir="ltr" placeholder="۱۴۰۴/۰۹/۰۱" autocomplete="off">
+                </div>
+                <div>
+                    <label class="admin-field-label text-xs mb-1 block">تا تاریخ</label>
+                    <input type="text" name="date_to" value="{{ request('date_to') ? format_jalali(request('date_to'), 'Y/m/d', false) : '' }}" data-jalali-date class="admin-input text-sm" dir="ltr" placeholder="۱۴۰۴/۰۹/۳۰" autocomplete="off">
+                </div>
+            </div>
+
+            <div class="export-modal-actions">
+                <button type="submit" class="admin-btn-primary text-sm export-modal-submit">دانلود فایل اکسل</button>
+                <button type="button" data-close-export-modal class="admin-btn-secondary text-sm">انصراف</button>
+            </div>
+        </form>
+    </div>
+</div>
 @endsection
+
+@push('styles')
+<style>
+    .export-modal-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+        background: rgba(15, 23, 42, .5);
+        backdrop-filter: blur(4px);
+    }
+    .export-modal-overlay.hidden { display: none; }
+    .export-modal-box {
+        width: 100%;
+        max-width: 430px;
+        padding: 1.5rem;
+        border: 1px solid #e4e4e7;
+        border-radius: 20px;
+        background: #fff;
+        box-shadow: 0 25px 70px rgba(15, 23, 42, .25);
+        animation: export-modal-in .2s ease-out;
+    }
+    @keyframes export-modal-in {
+        from { opacity: 0; transform: translateY(10px) scale(.98); }
+        to { opacity: 1; transform: none; }
+    }
+    .export-modal-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: .35rem;
+    }
+    .export-modal-head h3 { font-size: 1rem; font-weight: 800; color: #18181b; }
+    .export-modal-close {
+        color: #a1a1aa;
+        transition: color .15s;
+        border-radius: 8px;
+        padding: 2px;
+    }
+    .export-modal-close:hover { color: #3f3f46; }
+    .export-modal-desc { font-size: .75rem; line-height: 1.7; color: #71717a; margin-bottom: 1rem; }
+    .export-modal-presets { display: flex; flex-wrap: wrap; gap: .5rem; }
+    .export-preset-link {
+        padding: .35rem .8rem;
+        border: 1px solid #d9e2e2;
+        border-radius: 999px;
+        font-size: .75rem;
+        font-weight: 600;
+        color: #0f766e;
+        background: #f0fafa;
+        transition: all .15s;
+        white-space: nowrap;
+    }
+    .export-preset-link:hover { background: #16827D; border-color: #16827D; color: #fff; }
+    .export-preset-all { color: #52525b; background: #fafafa; }
+    .export-preset-all:hover { background: #3f3f46; border-color: #3f3f46; color: #fff; }
+    .export-modal-divider {
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+        margin: 1.1rem 0;
+        color: #a1a1aa;
+        font-size: .7rem;
+    }
+    .export-modal-divider::before,
+    .export-modal-divider::after {
+        content: '';
+        flex: 1;
+        height: 1px;
+        background: #e4e4e7;
+    }
+    .export-modal-dates {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: .75rem;
+        margin-bottom: 1.25rem;
+    }
+    .export-modal-actions { display: flex; gap: .5rem; }
+    .export-modal-submit { flex: 1; justify-content: center; }
+</style>
+@endpush
+
+@push('scripts')
+<script>
+(function () {
+    'use strict';
+
+    const modal = document.getElementById('export-modal');
+    const openButton = document.getElementById('export-excel-button');
+    if (!modal || !openButton) return;
+
+    const openModal = () => modal.classList.remove('hidden');
+    const closeModal = () => modal.classList.add('hidden');
+
+    openButton.addEventListener('click', openModal);
+    modal.querySelectorAll('[data-close-export-modal]').forEach(function (button) {
+        button.addEventListener('click', closeModal);
+    });
+    modal.addEventListener('click', function (event) {
+        if (event.target === modal) closeModal();
+    });
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && !modal.classList.contains('hidden')) closeModal();
+    });
+})();
+</script>
+@endpush
