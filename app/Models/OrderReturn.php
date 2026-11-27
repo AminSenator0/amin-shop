@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class OrderReturn extends Model
 {
+    public const DEDUCTION_PERCENT = 30;
+
     protected $fillable = [
         'order_id',
         'reason',
@@ -28,6 +30,27 @@ class OrderReturn extends Model
         ];
     }
 
+    /**
+     * مبلغی که پس از کسر ۳۰ درصد به کیف پول واریز می‌شود.
+     */
+    public function netRefundAmount(): int
+    {
+        return (int) round(
+            ((int) $this->refund_amount) * (100 - self::DEDUCTION_PERCENT) / 100
+        );
+    }
+
+    /**
+     * مبلغ کسرشده از مبنای مرجوعی.
+     */
+    public function deductionAmount(): int
+    {
+        return max(
+            0,
+            (int) $this->refund_amount - $this->netRefundAmount()
+        );
+    }
+
     public function order(): BelongsTo
     {
         return $this->belongsTo(Order::class);
@@ -38,4 +61,3 @@ class OrderReturn extends Model
         return $this->hasMany(OrderReturnItem::class);
     }
 }
-
