@@ -848,16 +848,50 @@ class OrderService
 
     public function calculatePartialRefundAmount(Order $order, array $itemQuantities): int
     {
+        $returnablePaid = $order->returnablePaidAmount();
         $amount = 0;
 
+        // پیش‌فروش: بر اساس قیمت نهایی اقلام و نسبت مبلغ واقعاً پرداخت‌شده
+        if ($order->isPresale()) {
+            $selectedValue = 0;
+            $totalValue = 0;
+
+            foreach ($order->items as $item) {
+                $unitPrice = (int) ($item->presale_final_price ?: $item->price);
+                $totalValue += $unitPrice * (int) $item->quantity;
+
+                $qty = min(
+                    max(0, (int) ($itemQuantities[$item->id] ?? 0)),
+                    (int) $item->quantity
+                );
+
+                $selectedValue += $unitPrice * $qty;
+            }
+
+            if ($selectedValue <= 0 || $totalValue <= 0) {
+                return $returnablePaid;
+            }
+
+            return min(
+                $returnablePaid,
+                (int) round($returnablePaid * ($selectedValue / $totalValue))
+            );
+        }
+
+        // سفارش عادی: فقط مبلغ اقلام انتخاب‌شده، بدون هزینه ارسال
         foreach ($order->items as $item) {
-            $qty = (int) ($itemQuantities[$item->id] ?? 0);
+            $qty = min(
+                max(0, (int) ($itemQuantities[$item->id] ?? 0)),
+                (int) $item->quantity
+            );
 
             if ($qty > 0) {
-                $amount += $item->price * min($qty, $item->quantity);
+                $amount += (int) $item->price * $qty;
             }
         }
 
-        return $amount > 0 ? $amount : $order->total;
+        return $amount > 0
+            ? min($amount, $returnablePaid)
+            : $returnablePaid;
     }
 }
