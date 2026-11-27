@@ -202,6 +202,15 @@ class Order extends Model
         return $this->order_type === 'presale';
     }
 
+        public function returnablePaidAmount(): int
+    {
+        $paid = $this->isPresale()
+            ? (int) ($this->presale_total_paid ?? 0)
+            : (int) $this->total;
+
+        return max(0, $paid - (int) $this->shipping_cost);
+    }
+
     // public function presalePayments(): \Illuminate\Database\Eloquent\Relations\HasMany
     // {
     //     return $this->hasMany(\App\Models\PresalePayment::class);
