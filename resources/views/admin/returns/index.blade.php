@@ -109,17 +109,50 @@
                         <x-admin.table-action type="view" :href="route('admin.orders.show', $return->order)" title="مشاهده سفارش" />
                     </x-admin.table-actions>
 
-                    @if($return->status === \App\Enums\ReturnStatus::Pending)
-                        <form method="POST" action="{{ route('admin.returns.status', $return) }}" class="w-full sm:w-56 space-y-2 rounded-xl border border-amber-200 bg-amber-50/50 p-3">
-                            @csrf @method('PATCH')
-                            <p class="text-xs font-bold text-amber-800">اقدام سریع</p>
+                    @if(in_array($return->status, [
+                        \App\Enums\ReturnStatus::Pending,
+                        \App\Enums\ReturnStatus::Approved,
+                    ], true))
+                        <form
+                            method="POST"
+                            action="{{ route('admin.returns.status', $return) }}"
+                            class="w-full space-y-2 rounded-xl border border-amber-200 bg-amber-50/50 p-3 sm:w-64"
+                        >
+                            @csrf
+                            @method('PATCH')
+
+                            <p class="text-xs font-bold text-amber-800">
+                                {{ $return->status === \App\Enums\ReturnStatus::Approved
+                                    ? 'اقدام پس از تأیید'
+                                    : 'بررسی درخواست' }}
+                            </p>
+
                             <select name="status" class="admin-select w-full text-xs" required>
-                                <option value="approved">تأیید</option>
-                                <option value="rejected">رد</option>
-                                <option value="refunded">بازگشت وجه</option>
+                                @if($return->status === \App\Enums\ReturnStatus::Pending)
+                                    <option value="approved">تأیید درخواست</option>
+                                    <option value="rejected">رد درخواست</option>
+                                    <option value="refunded">بازگشت وجه</option>
+                                @else
+                                    <option value="rejected">تغییر به رد شده</option>
+                                    <option value="refunded">بازگشت وجه به کیف پول</option>
+                                @endif
                             </select>
-                            <input type="text" name="admin_note" placeholder="یادداشت (اختیاری)..." class="admin-input w-full text-xs">
-                            <button type="submit" class="admin-btn-primary w-full text-xs py-2">ثبت تصمیم</button>
+
+                            <input
+                                type="text"
+                                name="admin_note"
+                                value="{{ old('admin_note', $return->admin_note) }}"
+                                placeholder="مثلاً: برای پیگیری روند مرجوعی تیکت ثبت کنید"
+                                class="admin-input w-full text-xs"
+                            >
+
+                            <p class="text-[11px] leading-5 text-amber-700">
+                                این پیام در بخش «مرجوعی‌ها»ی پنل کاربر نمایش داده می‌شود.
+                            </p>
+
+                            <button type="submit" class="admin-btn-primary w-full py-2 text-xs">
+                                ثبت تصمیم
+                            </button>
                         </form>
                     @endif
                 </div>
