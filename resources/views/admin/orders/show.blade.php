@@ -407,7 +407,7 @@
             <form method="POST" action="{{ route('admin.returns.store', $order) }}" class="space-y-2">
                 @csrf
                 <textarea name="reason" rows="3" placeholder="دلیل مرجوعی..." class="admin-input w-full resize-none text-sm" required></textarea>
-                <input type="text" name="refund_amount" value="{{ old('refund_amount', format_number($order->total, false)) }}" data-price-input placeholder="مبلغ استرداد" class="admin-input w-full text-sm" dir="ltr">
+                <input type="text" name="refund_amount" value="{{ old('refund_amount', format_number($order->returnablePaidAmount(), false)) }}" data-price-input placeholder="مبلغ استرداد" class="admin-input w-full text-sm" dir="ltr">
                 <button type="submit" class="admin-btn-secondary w-full">ثبت درخواست مرجوعی</button>
             </form>
         @endif
