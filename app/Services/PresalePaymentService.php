@@ -56,7 +56,7 @@ class PresalePaymentService
     }
 
 
-        public function payInstallmentWithWallet(Order $order, int $amount): void
+    public function payInstallmentWithWallet(Order $order, int $amount): void
     {
         $wallet = $order->user->wallet;
 
@@ -65,21 +65,8 @@ class PresalePaymentService
         }
 
         DB::transaction(function () use ($order, $amount, $wallet) {
-            $wallet->decrement('balance', $amount);
-
-            if (class_exists(\App\Models\WalletTransaction::class)) {
-                \App\Models\WalletTransaction::create([
-                    'wallet_id'      => $wallet->id,
-                    'amount'         => -$amount,
-                    'balance_after'  => $wallet->balance,
-                    'type'           => 'debit',
-                    'description'    => "پرداخت قسط پیش‌فروش سفارش {$order->order_number}",
-                    'reference_type' => \App\Enums\WalletReferenceType::PresaleRefund->value,
-                    'reference_id'   => $order->id,
-                ]);
-            }
-
-            PresalePayment::create([
+            // اول PresalePayment بسازیم تا ID منحصربفرد داشته باشیم
+            $payment = PresalePayment::create([
                 'order_id'    => $order->id,
                 'user_id'     => $order->user_id,
                 'amount'      => $amount,
@@ -88,6 +75,22 @@ class PresalePaymentService
                 'status'      => 'verified',
                 'verified_at' => now(),
             ]);
+
+            $oldBalance = $wallet->balance;
+            $wallet->decrement('balance', $amount);
+            $newBalance = $oldBalance - $amount;
+
+            if (class_exists(\App\Models\WalletTransaction::class)) {
+                \App\Models\WalletTransaction::create([
+                    'wallet_id'      => $wallet->id,
+                    'amount'         => -$amount,
+                    'balance_after'  => $newBalance,
+                    'type'           => 'debit',
+                    'description'    => "پرداخت قسط پیش‌فروش سفارش {$order->order_number}",
+                    'reference_type' => \App\Enums\WalletReferenceType::PresaleRefund->value,
+                    'reference_id'   => $payment->id,  // ← payment ID نه order ID
+                ]);
+            }
 
             $order->increment('presale_total_paid', $amount);
             $this->syncOrderPresaleStatus($order);
