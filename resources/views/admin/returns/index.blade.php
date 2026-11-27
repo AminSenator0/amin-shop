@@ -74,10 +74,30 @@
                         <x-admin.status-badge :status="$return->status" />
                         <span class="text-xs text-zinc-500">{{ format_jalali($return->created_at) }}</span>
                     </div>
-                    <p class="text-sm text-zinc-600">
-                        <span class="font-semibold text-zinc-800">{{ $return->order->user->name }}</span>
-                        — {{ format_price($return->refund_amount ?? $return->order->total) }}
-                    </p>
+                    <div class="space-y-1 text-sm text-zinc-600">
+                        <p>
+                            <span class="font-semibold text-zinc-800">
+                                {{ $return->order->user->name }}
+                            </span>
+                            — مبلغ پایه: {{ format_price($return->refund_amount) }}
+                        </p>
+
+                        <p class="text-xs text-zinc-500">
+                            کسر ۳۰٪: {{ format_price($return->deductionAmount()) }}
+
+                            <span class="mx-1">|</span>
+
+                            @if($return->status === \App\Enums\ReturnStatus::Refunded)
+                                واریزشده به کیف پول:
+                            @else
+                                قابل واریز به کیف پول:
+                            @endif
+
+                            <span class="font-bold text-emerald-600">
+                                {{ format_price($return->netRefundAmount()) }}
+                            </span>
+                        </p>
+                    </div>
                     <p class="text-sm text-zinc-700">{{ $return->reason }}</p>
                     @if($return->admin_note)
                         <p class="text-xs text-zinc-500 rounded-lg bg-zinc-50 px-3 py-2">یادداشت مدیر: {{ $return->admin_note }}</p>
