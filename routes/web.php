@@ -52,17 +52,20 @@ use App\Http\Controllers\User\ReviewController as UserReviewController;
 use App\Http\Controllers\User\WishlistController as UserWishlistController;
 use App\Http\Controllers\Admin\AnalyticsController;
 use App\Http\Controllers\Admin\AccountSessionController;
+use App\Http\Controllers\Admin\PresaleCampaignController as AdminPresaleCampaignController;
 // ===== کنترلرهای کارت به کارت =====
-use App\Http\Controllers\Payment\C2CPaymentController;                           // برای آپلود رسید و پرداخت دستی
-use App\Http\Controllers\Shop\C2CPaymentController as ShopC2CPaymentController; // برای درخواست بررسی و وضعیت
-use App\Http\Controllers\Admin\C2CPaymentController as AdminC2CPaymentController; // برای مدیریت در ادمین
+use App\Http\Controllers\Payment\C2CPaymentController;
+use App\Http\Controllers\Shop\C2CPaymentController as ShopC2CPaymentController;
+use App\Http\Controllers\Admin\C2CPaymentController as AdminC2CPaymentController;
+
+// ===== کنترلرهای پیش‌فروش =====
+use App\Http\Controllers\Shop\PresaleController;
 
 use App\Support\StoreSettings;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/favicon.ico', function () {
     $url = StoreSettings::faviconUrl();
-
     return redirect($url, 302, ['Cache-Control' => 'public, max-age=86400']);
 });
 
@@ -85,9 +88,7 @@ Route::get('/faq', [PageController::class, 'faq'])->name('pages.faq');
 Route::get('/about', [PageController::class, 'about'])->name('pages.about');
 Route::get('/rules', [PageController::class, 'rules'])->name('pages.rules');
 Route::get('/contact', [PageController::class, 'contact'])->name('pages.contact');
-Route::post('/contact', [ContactController::class, 'store'])
-    ->middleware('throttle:contact')
-    ->name('contact.store');
+Route::post('/contact', [ContactController::class, 'store'])->middleware('throttle:contact')->name('contact.store');
 Route::get('/track-order', [OrderTrackingController::class, 'show'])->name('orders.track');
 Route::post('/newsletter', [NewsletterController::class, 'subscribe'])->middleware('throttle:5,1')->name('newsletter.subscribe');
 Route::get('/wishlist', [WishlistController::class, 'index'])->name('wishlist.index');
@@ -97,12 +98,14 @@ Route::get('/wallet/callback', [\App\Http\Controllers\User\WalletController::cla
 Route::get('/sitemap.xml', function () {
     $categories = Category::where('is_active', true)->get();
     $products = Product::where('is_active', true)->get();
-
-    return response()
-        ->view('sitemap', compact('categories', 'products'))
-        ->header('Content-Type', 'application/xml');
+    return response()->view('sitemap', compact('categories', 'products'))->header('Content-Type', 'application/xml');
 })->name('sitemap');
 
+// ===== پیش‌فروش (عمومی) =====
+Route::get('/presale', [PresaleController::class, 'index'])->name('presale.index');
+Route::get('/presale/{presaleCampaign}', [PresaleController::class, 'show'])->name('presale.campaign');
+Route::get('/presale/{presaleCampaign}/{presaleProduct}', [PresaleController::class, 'product'])
+    ->name('presale.product');
 // ============================
 // فروشگاه (کاربران لاگین‌شده)
 // ============================
@@ -112,17 +115,22 @@ Route::middleware('auth')->group(function () {
     Route::post('/checkout/coupon', [CouponController::class, 'apply'])->middleware('throttle:10,1')->name('checkout.coupon.apply');
     Route::delete('/checkout/coupon', [CouponController::class, 'destroy'])->name('checkout.coupon.destroy');
     Route::get('/checkout/payment/{order}', [CheckoutController::class, 'payment'])->name('checkout.payment');
-    Route::post('/checkout/payment/{order}', [CheckoutController::class, 'processPayment'])
-        ->middleware('throttle:payment')
-        ->name('checkout.payment.process');
+    Route::post('/checkout/payment/{order}', [CheckoutController::class, 'processPayment'])->middleware('throttle:payment')->name('checkout.payment.process');
+        Route::post('/checkout/payment/{order}/presale', [CheckoutController::class, 'payPresale'])->name('checkout.presale.pay');
     Route::post('/products/{product}/reviews', [ReviewController::class, 'store'])->name('products.reviews.store');
+Route::post('/checkout/payment/{order}', [CheckoutController::class, 'processPayment'])->name('checkout.payment.process');
+ 
 
-        // ===== کیف پول =====
+        Route::post('/cart/presale', [CartController::class, 'addPresale'])->name('cart.presale.store');
+            Route::post('/checkout/payment/{order}/presale', [CheckoutController::class, 'payPresale'])->name('checkout.presale.pay');
+                Route::post('/cart/presale', [CartController::class, 'addPresale'])->name('cart.presale.store');
+    // ===== کیف پول =====
     Route::get('/wallet', [\App\Http\Controllers\User\WalletController::class, 'index'])->name('wallet.index');
     Route::post('/wallet/charge', [\App\Http\Controllers\User\WalletController::class, 'charge'])->middleware('throttle:payment')->name('wallet.charge');
     Route::post('/wallet/charge-c2c', [\App\Http\Controllers\User\WalletController::class, 'chargeC2c'])->middleware('throttle:payment')->name('wallet.charge-c2c');
-     Route::post('/wallet/withdraw', [\App\Http\Controllers\User\WalletController::class, 'withdraw'])->middleware('throttle:payment')->name('wallet.withdraw');
-    // ========== کارت به کارت (فقط این ۵ خط) ==========
+    Route::post('/wallet/withdraw', [\App\Http\Controllers\User\WalletController::class, 'withdraw'])->middleware('throttle:payment')->name('wallet.withdraw');
+
+    // ========== کارت به کارت ==========
     Route::get('/c2c/{order}', [\App\Http\Controllers\Payment\C2CPaymentController::class, 'show'])->name('c2c.show');
     Route::post('/c2c/check/{order}', [\App\Http\Controllers\Payment\C2CPaymentController::class, 'checkStatus'])->name('c2c.check');
     Route::post('/c2c/receipt/{order}', [\App\Http\Controllers\Payment\C2CPaymentController::class, 'uploadReceipt'])->name('c2c.receipt');
@@ -139,23 +147,25 @@ Route::middleware('auth')->group(function () {
         Route::post('/orders/{order}/reorder', [UserOrderController::class, 'reorder'])->name('orders.reorder');
         Route::post('/orders/{order}/returns', [UserReturnController::class, 'store'])->name('orders.returns.store');
         Route::get('/orders/{order}/invoice', [InvoiceController::class, 'show'])->name('orders.invoice');
+        Route::get('/presale-orders', [\App\Http\Controllers\User\UserPresaleOrderController::class, 'index'])->name('presale-orders.index');
+        Route::get('/presale-orders/{order}', [\App\Http\Controllers\User\UserPresaleOrderController::class, 'show'])->name('presale-orders.show');
+        Route::post('/presale-orders/{order}/pay', [\App\Http\Controllers\User\UserPresaleOrderController::class, 'pay'])->name('presale-orders.pay');
+       Route::post('/presale-orders/{order}/pay-deposit', [\App\Http\Controllers\User\UserPresaleOrderController::class, 'payDeposit'])->name('presale-orders.pay-deposit');
         Route::get('/wishlist', [UserWishlistController::class, 'index'])->name('wishlist.index');
         Route::get('/reviews', [UserReviewController::class, 'index'])->name('reviews.index');
         Route::get('/returns', [UserReturnController::class, 'index'])->name('returns.index');
         Route::resource('addresses', AddressController::class)->except(['show']);
         Route::get('/coupons', [UserCouponController::class, 'index'])->name('coupons.index');
         Route::post('/coupons', [UserCouponController::class, 'store'])->middleware('throttle:10,1')->name('coupons.store');
-        Route::post('/coupons/{coupon}/apply', [UserCouponController::class, 'apply'])
-            ->middleware('throttle:coupon')
-            ->name('coupons.apply');
+        Route::post('/coupons/{coupon}/apply', [UserCouponController::class, 'apply'])->middleware('throttle:coupon')->name('coupons.apply');
         Route::delete('/coupons/{coupon}', [UserCouponController::class, 'destroy'])->name('coupons.destroy');
         Route::get('/messages', [UserMessageController::class, 'index'])->name('messages.index');
         Route::get('/messages/new', [UserMessageController::class, 'create'])->name('messages.create');
-        Route::post('/messages', [UserMessageController::class, 'store'])
-            ->middleware('throttle:contact')
-            ->name('messages.store');
+        Route::post('/messages', [UserMessageController::class, 'store'])->middleware('throttle:contact')->name('messages.store');
         Route::get('/messages/{message}', [UserMessageController::class, 'show'])->name('messages.show');
         Route::post('/messages/{message}/reply', [UserMessageController::class, 'reply'])->name('messages.reply');
+
+       
     });
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -166,11 +176,11 @@ Route::middleware('auth')->group(function () {
 // ============================
 // ورود به پنل مدیریت
 // ============================
-// ورود مدیر — فقط از مسیر مخفیِ تعریف‌شده در ADMIN_LOGIN_PATH
 Route::prefix(config('admin.login_path'))->name('admin.')->middleware('guest')->group(function () {
     Route::get('/', [AdminLoginController::class, 'create'])->name('login');
     Route::post('/', [AdminLoginController::class, 'store']);
 });
+
 // ============================
 // پنل مدیریت (ادمین)
 // ============================
@@ -183,6 +193,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::resource('products', AdminProductController::class)->except(['show']);
     Route::delete('products/{product}/images/{image}', [AdminProductController::class, 'destroyImage'])->name('products.images.destroy');
     Route::resource('categories', AdminCategoryController::class)->except(['show']);
+    Route::get('/products/{product}/custom-fields', [ProductController::class, 'customFields'])->name('admin.products.custom-fields');
     Route::get('orders/export', [AdminOrderController::class, 'export'])->name('orders.export');
     Route::patch('orders/mark-all-read', [AdminOrderController::class, 'markAllRead'])->name('orders.mark-all-read');
     Route::get('orders/create', [AdminOrderController::class, 'create'])->name('orders.create');
@@ -195,25 +206,63 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::patch('orders/{order}/payment-status', [AdminOrderController::class, 'updatePaymentStatus'])->name('orders.payment-status');
     Route::post('orders/{order}/cancel', [AdminOrderController::class, 'cancel'])->name('orders.cancel');
     Route::patch('orders/{order}/internal-notes', [AdminOrderController::class, 'updateInternalNotes'])->name('orders.internal-notes');
+Route::get('/products/{product}/custom-fields', function (\App\Models\Product $product) {
+    $product->load('customFields.optionDetails');
+    return response()->json([
+        'fields' => $product->customFields->map(function ($field) {
+            return [
+                'id' => $field->id,
+                'label' => $field->label,
+                'options' => $field->optionDetails->map(function ($opt) {
+                    return [
+                        'id' => $opt->id,
+                        'value' => $opt->value,
+                        'stock' => $opt->hasCustomStock() ? $opt->stock : null,
+                    ];
+                }),
+            ];
+        }),
+    ]);
+})->name('admin.products.custom-fields');
+        // ===== مدیریت پیش‌فروش =====
+    Route::prefix('presale')->name('presale.')->group(function () {
+        Route::get('campaigns', [AdminPresaleCampaignController::class, 'index'])->name('campaigns.index');
+        Route::get('campaigns/create', [AdminPresaleCampaignController::class, 'create'])->name('campaigns.create');
+        Route::post('campaigns', [AdminPresaleCampaignController::class, 'store'])->name('campaigns.store');
+        Route::get('campaigns/{presaleCampaign}/edit', [AdminPresaleCampaignController::class, 'edit'])->name('campaigns.edit');
+        Route::put('campaigns/{presaleCampaign}', [AdminPresaleCampaignController::class, 'update'])->name('campaigns.update');
+        Route::delete('campaigns/{presaleCampaign}', [AdminPresaleCampaignController::class, 'destroy'])->name('campaigns.destroy');
+        Route::get('campaigns/{presaleCampaign}', [AdminPresaleCampaignController::class, 'show'])->name('campaigns.show');
+        Route::post('campaigns/{presaleCampaign}/extend', [AdminPresaleCampaignController::class, 'extend'])->name('campaigns.extend');
+        Route::post('campaigns/{presaleCampaign}/close', [AdminPresaleCampaignController::class, 'close'])->name('campaigns.close');
+        Route::post('campaigns/{presaleCampaign}/products', [AdminPresaleCampaignController::class, 'addProduct'])->name('campaigns.products.store');
+        Route::delete('campaigns/{presaleCampaign}/products/{presaleProduct}', [AdminPresaleCampaignController::class, 'removeProduct'])->name('campaigns.products.destroy');
+        Route::post('campaigns/{presaleCampaign}/products/{presaleProduct}/pricing', [AdminPresaleCampaignController::class, 'setPricing'])->name('campaigns.products.pricing');
+        Route::post('campaigns/{presaleCampaign}/deadline', [AdminPresaleCampaignController::class, 'setDeadline'])->name('campaigns.deadline');
 
-        // ─── آمارها ─────────────────────────────────
+        Route::post('orders/{order}/cancel', [AdminPresaleCampaignController::class, 'cancelPresaleOrder'])->name('orders.cancel');
+    });
+
+    // ─── آمارها ─────────────────────────────────
     Route::get('analytics', [AnalyticsController::class, 'visits'])->name('analytics.visits');
     Route::get('analytics/products', [AnalyticsController::class, 'products'])->name('analytics.products');
     Route::get('analytics/blog', [AnalyticsController::class, 'blog'])->name('analytics.blog');
     Route::get('account-sessions', [AccountSessionController::class, 'index'])->name('account-sessions.index');
     Route::delete('account-sessions/{accountSession}', [AccountSessionController::class, 'destroy'])->name('account-sessions.destroy');
-    // ===== مدیریت پرداخت‌های کارت به کارت (ادمین) =====
+
+    
+    // ===== مدیریت پرداخت‌های کارت به کارت =====
     Route::get('c2c-payments', [AdminC2CPaymentController::class, 'index'])->name('c2c.index');
     Route::post('c2c-payments/{payment}/verify', [AdminC2CPaymentController::class, 'verify'])->name('c2c.verify');
     Route::post('c2c-payments/{payment}/reject', [AdminC2CPaymentController::class, 'reject'])->name('c2c.reject');
-    // ===== مدیریت کیف پول (ادمین) =====
+
+    // ===== مدیریت کیف پول =====
     Route::get('wallet/deposits', [\App\Http\Controllers\Admin\WalletController::class, 'deposits'])->name('wallet.deposits.index');
     Route::post('wallet/deposits/{deposit}/verify', [\App\Http\Controllers\Admin\WalletController::class, 'verifyDeposit'])->name('wallet.deposits.verify');
     Route::post('wallet/deposits/{deposit}/reject', [\App\Http\Controllers\Admin\WalletController::class, 'rejectDeposit'])->name('wallet.deposits.reject');
     Route::get('wallet/withdrawals', [\App\Http\Controllers\Admin\WalletController::class, 'withdrawals'])->name('wallet.withdrawals.index');
     Route::post('wallet/withdrawals/{withdrawal}/approve', [\App\Http\Controllers\Admin\WalletController::class, 'approveWithdrawal'])->name('wallet.withdrawals.approve');
     Route::post('wallet/withdrawals/{withdrawal}/reject', [\App\Http\Controllers\Admin\WalletController::class, 'rejectWithdrawal'])->name('wallet.withdrawals.reject');
-
 
     Route::resource('brands', AdminBrandController::class)->except(['show']);
     Route::get('returns', [AdminReturnController::class, 'index'])->name('returns.index');
@@ -225,8 +274,8 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::post('messages/{message}/reply', [ContactMessageController::class, 'reply'])->name('messages.reply');
     Route::patch('messages/{message}/unread', [ContactMessageController::class, 'markUnread'])->name('messages.unread');
     Route::delete('messages/{message}', [ContactMessageController::class, 'destroy'])->name('messages.destroy');
-Route::patch('messages/{message}/close', [ContactMessageController::class, 'close'])->name('messages.close');
-Route::patch('messages/{message}/reopen', [ContactMessageController::class, 'reopen'])->name('messages.reopen');
+    Route::patch('messages/{message}/close', [ContactMessageController::class, 'close'])->name('messages.close');
+    Route::patch('messages/{message}/reopen', [ContactMessageController::class, 'reopen'])->name('messages.reopen');
     Route::get('users/export', [AdminUserController::class, 'export'])->name('users.export');
     Route::get('users/create', [AdminUserController::class, 'create'])->name('users.create');
     Route::post('users', [AdminUserController::class, 'store'])->name('users.store');
@@ -267,10 +316,8 @@ Route::patch('messages/{message}/reopen', [ContactMessageController::class, 'reo
         Route::get('/user/{user}/activity', [AuditLogController::class, 'userActivity'])->name('user-activity');
         Route::get('/admin/{admin}/activity', [AuditLogController::class, 'adminActivity'])->name('admin-activity');
         Route::get('{auditLog}/show', [AuditLogController::class, 'show'])->name('show');
-
         Route::get('/alerts', [SecurityAlertController::class, 'index'])->name('alerts');
         Route::patch('/alerts/{alert}/resolve', [SecurityAlertController::class, 'resolve'])->name('alerts.resolve');
-
         Route::get('/blocked-ips', [BlockedIpController::class, 'index'])->name('blocked-ips');
         Route::post('/blocked-ips', [BlockedIpController::class, 'store'])->name('blocked-ips.store');
         Route::delete('/blocked-ips/{blockedIp}', [BlockedIpController::class, 'destroy'])->name('blocked-ips.destroy');

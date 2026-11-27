@@ -23,7 +23,7 @@ class ZarinpalService
      * درخواست پرداخت برای سفارش (مبلغ سفارش: تومان → ریال تبدیل می‌شود).
      * ⚠️ این متد API عمومی است — سفارش‌ها از همین استفاده می‌کنند.
      */
-    public function requestPayment(Order $order): array
+        public function requestPayment(Order $order, ?int $customAmountToman = null): array
     {
         $order->loadMissing('user');
 
@@ -32,7 +32,7 @@ class ZarinpalService
         $email = $order->user?->email;
 
         return $this->requestGatewayPayment(
-            amountRials: $this->amountInRials((int) $order->gatewayPayable()),
+         amountRials: $this->amountInRials($customAmountToman ?? (int) $order->gatewayPayable()),
             description: "سفارش {$order->order_number}",
             metadata: array_filter([
                 'mobile' => $mobile ? (string) $mobile : null,

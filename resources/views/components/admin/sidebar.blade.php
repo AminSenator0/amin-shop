@@ -39,6 +39,10 @@
             icon='<svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>'>
             سفارشات
         </x-admin.nav-item>
+                <x-admin.nav-item href="{{ route('admin.presale.campaigns.index') }}" :active="request()->routeIs('admin.presale.*')"
+            icon='<svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>'>
+            کمپین‌های پیش‌فروش
+        </x-admin.nav-item>
         <x-admin.nav-item href="{{ route('admin.returns.index') }}" :active="request()->routeIs('admin.returns.*')" :badge="($pendingReturnsCount ?? 0) > 0 ? $pendingReturnsCount : null"
             icon='<svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>'>
             مرجوعی‌ها

@@ -1,6 +1,6 @@
 @extends('layouts.shop')
 
-@section('title', 'تسویه حساب')
+@section('title', ($isPresale ?? false) ? 'پرداخت پیش‌فروش' : 'تسویه حساب')
 
 @section('content')
 @php
@@ -19,7 +19,13 @@
     });
     $initialShippingId = old('shipping_method_id', $shippingMethods->first()?->id);
 @endphp
-
+@if($errors->any())
+    <div class="mb-4 rounded-xl bg-rose-50 border border-rose-200 p-4 text-rose-700 text-sm">
+        @foreach($errors->all() as $error)
+            <p>{{ $error }}</p>
+        @endforeach
+    </div>
+@endif
 <section class="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8"
          x-data="{
             shippingId: {{ Js::from($initialShippingId ? (string) $initialShippingId : null) }},
@@ -51,8 +57,20 @@
     <div class="shop-flow-intro mb-6 !py-5">
         <div class="shop-flow-intro-content">
             <span class="shop-flow-step-badge">مرحله ۳ از ۴</span>
-            <h1 class="shop-flow-title !text-xl sm:!text-2xl">اطلاعات ارسال و تکمیل سفارش</h1>
-            <p class="shop-flow-desc">آدرس و روش ارسال را انتخاب کنید تا مبلغ نهایی مشخص شود.</p>
+            <h1 class="shop-flow-title !text-xl sm:!text-2xl">
+                @if($isPresale ?? false)
+                    اطلاعات پیش‌فروش و پرداخت بیعانه
+                @else
+                    اطلاعات ارسال و تکمیل سفارش
+                @endif
+            </h1>
+            <p class="shop-flow-desc">
+                @if($isPresale ?? false)
+                    آدرس تحویل را انتخاب کنید تا بیعانه پرداخت شود.
+                @else
+                    آدرس و روش ارسال را انتخاب کنید تا مبلغ نهایی مشخص شود.
+                @endif
+            </p>
         </div>
     </div>
 
@@ -287,7 +305,7 @@
             @foreach($items as $item)
                 <div class="flex justify-between gap-3 text-sm py-2 border-b border-gray-50">
                     <span class="text-gray-600">{{ $item['product']->name }} × {{ $item['quantity'] }}</span>
-                    <span class="font-bold whitespace-nowrap">{{ format_price($item['subtotal']) }}</span>
+                    <span class="font-bold whitespace-nowrap">{{ format_price($item['total']) }}</span>
                 </div>
             @endforeach
             </div>

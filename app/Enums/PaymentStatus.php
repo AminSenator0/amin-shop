@@ -8,24 +8,27 @@ enum PaymentStatus: string
     case Paid = 'paid';
     case Failed = 'failed';
     case Refunded = 'refunded';
+    case PartiallyPaid = 'partially_paid';   // ← جدید
 
     public function label(): string
     {
         return match ($this) {
-            self::Pending => 'در انتظار پرداخت',
-            self::Paid => 'پرداخت شده',
-            self::Failed => 'ناموفق',
-            self::Refunded => 'بازگشت وجه',
+            self::Pending      => 'در انتظار پرداخت',
+            self::Paid         => 'پرداخت شده',
+            self::Failed       => 'ناموفق',
+            self::Refunded     => 'بازگشت وجه',
+            self::PartiallyPaid=> 'پرداخت جزئی',
         };
     }
 
-    public function color(): string
+       public function color(): string
     {
         return match ($this) {
-            self::Pending => 'amber',
-            self::Paid => 'emerald',
-            self::Failed => 'rose',
-            self::Refunded => 'blue',
+            self::Pending      => 'amber',
+            self::Paid         => 'emerald',
+            self::Failed       => 'rose',
+            self::Refunded     => 'blue',
+            self::PartiallyPaid=> 'teal',
         };
     }
 }

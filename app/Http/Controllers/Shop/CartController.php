@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Shop;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Shop\AddToCartRequest;
 use App\Http\Requests\Shop\UpdateCartRequest;
+use Illuminate\Http\Request;
 use App\Services\CartService;
 use App\Support\ShoppingFlow;
 
@@ -36,6 +37,23 @@ class CartController extends Controller
         return back()->with('success', 'محصول به سبد خرید اضافه شد.');
     }
 
+    public function addPresale(Request $request)
+    {
+        $validated = $request->validate([
+            'presale_product_id' => ['required', 'integer', 'exists:presale_products,id'],
+            'quantity' => ['required', 'integer', 'min:1'],
+        ]);
+
+        $cart = app(CartService::class);
+
+        try {
+            $cart->addPresale((int) $validated['presale_product_id'], (int) $validated['quantity']);
+        } catch (\RuntimeException|\Exception $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return redirect()->route('cart.index')->with('success', 'محصول پیش‌فروش به سبد اضافه شد.');
+    }
     public function update(UpdateCartRequest $request, string $lineKey)
     {
         try {

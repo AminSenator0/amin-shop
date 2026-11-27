@@ -17,6 +17,9 @@ class OrderItem extends Model
         'price',
         'quantity',
         'total',
+        'presale_product_id',
+        'presale_final_price',
+        'presale_penalty',
     ];
 
     public function order(): BelongsTo
@@ -27,6 +30,11 @@ class OrderItem extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+        public function presaleProduct(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\PresaleProduct::class);
     }
 
     protected function casts(): array
@@ -54,5 +62,9 @@ class OrderItem extends Model
         }
 
         return $parts !== [] ? implode(' · ', $parts) : null;
+    }
+        public function isPresale(): bool
+    {
+        return $this->presale_product_id !== null;
     }
 }

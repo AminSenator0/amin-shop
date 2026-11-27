@@ -21,9 +21,15 @@ class C2CPaymentController extends Controller
     public function show(Order $order)
     {
         // اطمینان از اینکه سفارش متعلق به کاربر جاری است
-         if ($order->user_id !== auth()->id()) { abort(403); }
+         if ((int) $order->user_id !== (int) auth()->id()) { abort(403); }
 
-        $c2c = $this->service->create($order);
+        $installmentAmount = session('presale_installment_amount');
+        session()->forget('presale_installment_amount');
+        if ($installmentAmount && $order->order_type === 'presale' && $order->presale_status !== 'awaiting_final_price') {
+            $c2c = $this->service->createForInstallment($order, (int) $installmentAmount);
+        } else {
+            $c2c = $this->service->create($order);
+        }
 
         // اگر منقضی شده باشد
         if ($c2c->isExpired() && $c2c->status === 'pending') {

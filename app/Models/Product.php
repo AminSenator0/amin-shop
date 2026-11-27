@@ -57,6 +57,11 @@ class Product extends Model
         return $this->hasMany(ProductImage::class)->orderBy('sort_order');
     }
 
+        public function presaleProducts(): HasMany
+    {
+        return $this->hasMany(\App\Models\PresaleProduct::class);
+    }
+
     // ─── متدهای واریانت ────────────────────────────────────
     public function variants(): HasMany
     {
@@ -392,6 +397,14 @@ class Product extends Model
                 ['size' => 'XL', 'values' => ['', '', '', '']],
             ],
         ];
+    }
+
+    /**
+     * قیمت نهایی محصول (با احتساب تخفیف)
+     */
+    public function finalPrice(): int
+    {
+        return $this->sale_price ?? $this->price;
     }
 
     public static function defaultShoeSizeChart(): array

@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Shop;
 
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
+use App\Enums\PresaleStatus;
+use App\Enums\WalletReferenceType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Shop\CheckoutRequest;
 use App\Models\Coupon;
@@ -11,12 +13,13 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\ProductCustomFieldOption;
+use App\Models\PresalePayment;
 use App\Models\ShippingMethod;
 use App\Models\Wallet;
-use App\Enums\WalletReferenceType;
 use App\Services\CartService;
 use App\Services\CouponService;
 use App\Services\OrderService;
+use App\Services\PresalePaymentService;
 use App\Services\ZarinpalService;
 use App\Services\C2CPaymentService;
 use App\Services\WalletService;
@@ -52,7 +55,9 @@ class CheckoutController extends Controller
         // موجودی کیف پول برای گزینه‌ی پرداخت ترکیبی
         $wallet = $this->wallets->getOrCreateForUser(auth()->user());
 
-        return view('shop.checkout', compact('items', 'subtotal', 'discount', 'appliedCoupon', 'shippingMethods', 'addresses', 'defaultAddress', 'minOrderAmount', 'wallet'));
+        $isPresale = $this->cart->hasPresaleItems();
+
+        return view('shop.checkout', compact('items', 'subtotal', 'discount', 'appliedCoupon', 'shippingMethods', 'addresses', 'defaultAddress', 'minOrderAmount', 'wallet', 'isPresale'));
     }
 
     public function store(CheckoutRequest $request)
@@ -75,6 +80,12 @@ class CheckoutController extends Controller
             ->values();
         $couponCode = $this->coupons->getApplied()?->code;
 
+        // ─── پیش‌فروش: مسیر جداگانه ───
+        if ($this->cart->hasPresaleItems()) {
+            return $this->storePresale($validated, $address, $cartItems);
+        }
+        // ─── پایان پیش‌فروش ───
+
         try {
             $order = DB::transaction(function () use ($validated, $address, $cartItems, $couponCode, $minOrderAmount) {
                 $shippingMethod = ShippingMethod::query()
@@ -96,12 +107,10 @@ class CheckoutController extends Controller
                         throw new \RuntimeException("محصول {$item['product']->name} در دسترس نیست.");
                     }
 
-                    // گزینه‌های سفارشی با موجودی اختصاصی → لاک ردیف‌ها و چک موجودی
                     $optionLocks = $this->lockSelectedOptions($item['custom_fields'] ?? []);
                     $optionLimit = $this->optionLimitFromLocks($optionLocks);
 
                     if ($optionLimit !== null) {
-                        // قانون: گزینه با موجودی اختصاصی → موجودی گزینه مرجع است
                         if ($item['quantity'] > $optionLimit) {
                             throw new \RuntimeException("موجودی گزینه انتخاب‌شده برای {$item['product']->name} کافی نیست.");
                         }
@@ -109,7 +118,6 @@ class CheckoutController extends Controller
                         throw new \RuntimeException("موجودی {$item['product']->name} کافی نیست.");
                     }
 
-                    // قیمت نهایی = snapshot هنگام افزودن به سبد (سازگار با CartService)
                     $unitPrice = (int) ($item['price'] ?? $product->price);
                     $lineTotal = $unitPrice * $item['quantity'];
                     $subtotal += $lineTotal;
@@ -156,12 +164,11 @@ class CheckoutController extends Controller
                 $shippingCost = $shippingMethod->calculateCost($subtotal - $discount);
                 $total = max(0, $subtotal - $discount) + $shippingCost;
 
-                // ⬇️⬇️⬇️ تخفیف کارت به کارت ⬇️⬇️⬇️
                 $c2cDiscount = 0;
                 $payable = $total;
 
                 if ($validated['payment_method'] === 'c2c') {
-                    $discountPercent = (float) (\App\Support\StoreSettings::get('c2c_discount_percent') ?? 1);
+                    $discountPercent = (float) (StoreSettings::get('c2c_discount_percent') ?? 1);
                     $c2cDiscount = round($total * $discountPercent / 100);
                     $payable = $total - $c2cDiscount;
                 }
@@ -193,7 +200,6 @@ class CheckoutController extends Controller
                     $product = $line['product'];
 
                     if ($line['has_custom_option_stock']) {
-                        // قانون: موجودی از گزینه کم می‌شود (محصول/واریانت دست‌نخورده می‌ماند)
                         foreach ($line['option_locks'] as $option) {
                             if ($option && $option->hasCustomStock()) {
                                 $option->decrement('stock', $line['quantity']);
@@ -226,7 +232,6 @@ class CheckoutController extends Controller
                     throw new \RuntimeException('مغایرت در محاسبه مبلغ سفارش.');
                 }
 
-                // ⬇️⬇️⬇️ پرداخت ترکیبی با کیف پول ⬇️⬇️⬇️
                 $walletPart = 0;
 
                 if (($validated['use_wallet'] ?? false) && $payable > 0) {
@@ -236,7 +241,6 @@ class CheckoutController extends Controller
                         ->first();
 
                     if ($wallet && $wallet->is_active && $wallet->balance > 0) {
-                        // سهم کیف پول = حداکثرِ ممکن از موجودی (فقط سمت سرور محاسبه می‌شود)
                         $walletPart = min($wallet->balance, $payable);
 
                         $this->wallets->debit(
@@ -251,7 +255,6 @@ class CheckoutController extends Controller
                     }
                 }
 
-                // اگر کیف پول کل مبلغ را پوشش داد → سفارش فوراً پرداخت‌شده
                 if ($walletPart > 0 && $walletPart >= $payable) {
                     $order->update([
                         'payment_method' => 'wallet',
@@ -263,7 +266,6 @@ class CheckoutController extends Controller
 
                     $this->orders->logActivity($order, 'paid', 'سفارش به‌صورت کامل با کیف پول پرداخت شد.');
                 }
-                // ⬆️⬆️⬆️ پایان پرداخت ترکیبی ⬆️⬆️⬆️
 
                 $this->orders->logActivity($order, 'created', 'سفارش توسط مشتری ثبت شد.');
 
@@ -278,7 +280,6 @@ class CheckoutController extends Controller
 
         $this->orders->sendConfirmationEmail($order);
 
-        // ⬇️ اگر کاملاً با کیف پول پرداخت شده → مستقیم به صفحه سفارش ⬇️
         if ($order->isFullyPaidByWallet()) {
             return redirect()
                 ->route('user.orders.show', $order)
@@ -292,10 +293,144 @@ class CheckoutController extends Controller
         return redirect()->route('checkout.payment', $order)->with('success', 'سفارش ثبت شد. لطفاً پرداخت را انجام دهید.');
     }
 
+    private function storePresale(array $validated, $address, $cartItems)
+    {
+        $presaleItem = $cartItems->firstWhere('sale_type', 'presale');
+        $presaleProduct = \App\Models\PresaleProduct::find($presaleItem['presale_product_id']);
+
+        if (! $presaleProduct || ! $presaleProduct->campaign->isOpenNow()) {
+            return back()->with('error', 'کمپین پیش‌فروش در حال حاضر باز نیست.');
+        }
+
+        try {
+            $order = DB::transaction(function () use ($validated, $address, $cartItems, $presaleProduct) {
+                $subtotal = 0;
+                foreach ($cartItems as $item) {
+                    $subtotal += $item['price'] * $item['quantity'];
+                }
+
+                // ── کوپن ──
+                $couponCode = $this->coupons->getApplied()?->code;
+                $coupon = null;
+                $discount = 0;
+                if ($couponCode) {
+                    $coupon = \App\Models\Coupon::query()
+                        ->where('code', $couponCode)
+                        ->where('is_active', true)
+                        ->first();
+                    if ($coupon && $coupon->isValid($subtotal)) {
+                        $discount = $coupon->calculateDiscount($subtotal);
+                    } else {
+                        $coupon = null;
+                        $discount = 0;
+                    }
+                }
+                $discount = min($discount, $subtotal);
+
+                // ── پست ──
+                $shippingMethod = \App\Models\ShippingMethod::query()
+                    ->whereKey($validated['shipping_method_id'] ?? null)
+                    ->where('is_active', true)
+                    ->first();
+                $shippingCost = $shippingMethod ? $shippingMethod->calculateCost(max(0, $subtotal - $discount)) : 0;
+
+                // ── جمع نهایی ──
+                $total = max(0, $subtotal - $discount) + $shippingCost;
+                $payable = $total;
+
+                // C2C تخفیف
+                $c2cDiscount = 0;
+                if (($validated['payment_method'] ?? 'online') === 'c2c') {
+                    $discountPercent = (float) (\App\Support\StoreSettings::get('c2c_discount_percent') ?? 1);
+                    $c2cDiscount = round($total * $discountPercent / 100);
+                    $payable = $total - $c2cDiscount;
+                }
+
+                $order = Order::create([
+                    'user_id'               => auth()->id(),
+                    'order_number'          => Order::generateOrderNumber(),
+                    'order_type'            => 'presale',
+                    'presale_campaign_id'   => $presaleProduct->campaign_id,
+                    'presale_status'        => PresaleStatus::AwaitingFinalPrice->value,
+                    'status'                => OrderStatus::Pending,
+                    'payment_status'        => PaymentStatus::Pending,
+                    'payment_method'        => $validated['payment_method'],
+                    'shipping_method_id'    => $shippingMethod?->id,
+                    'coupon_id'             => $coupon?->id,
+                    'coupon_code'           => $coupon?->code,
+                    'subtotal'              => $subtotal,
+                    'shipping_cost'         => $shippingCost,
+                    'discount_amount'       => $discount,
+                    'total'                 => $total,
+                    'payable'               => $payable,
+                    'c2c_discount'          => $c2cDiscount,
+                    'shipping_address'      => $address->toSnapshot(),
+                    'notes'                 => $validated['notes'] ?? null,
+                ]);
+                $order->update(['presale_payment_deadline_at' => now()->addMinutes(20)]);
+
+                foreach ($cartItems as $item) {
+                    $pp = \App\Models\PresaleProduct::with('product')->find($item['presale_product_id']);
+                    $product = $pp->product;
+
+                    OrderItem::create([
+                        'order_id'            => $order->id,
+                        'product_id'          => $product->id,
+                        'product_name'        => $product->name . ($pp->customFieldsLabel() ? ' (' . $pp->customFieldsLabel() . ')' : ''),
+                        'product_sku'         => $product->sku,
+                        'options'             => null,
+                        'custom_fields'       => $pp->custom_fields,
+                        'price'               => $item['price'],
+                        'quantity'            => $item['quantity'],
+                        'total'               => $item['price'] * $item['quantity'],
+                        'presale_product_id'  => $pp->id,
+                        'presale_final_price' => null,
+                        'presale_penalty'     => 0,
+                    ]);
+                }
+
+                $this->orders->logActivity($order, 'created', 'سفارش پیش‌فروش ثبت شد.');
+
+                return $order;
+            }, 3);
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        $this->cart->clear();
+        $this->coupons->remove();
+
+        $method = $validated['payment_method'] ?? 'online';
+        $service = app(PresalePaymentService::class);
+
+        // کیف پول
+        if (!empty($validated['use_wallet'])) {
+            $service->payWithWallet($order, $order->payable, 'presale');
+            return redirect()->route('user.orders.show', $order)
+                ->with('success', 'پرداخت بیعانه با موفقیت انجام شد.');
+        }
+
+        if ($method === 'online') {
+            $result = $service->requestZarinpalDeposit($order, $order->payable);
+            return redirect()->away($result['redirect_url']);
+        }
+
+        if ($method === 'c2c') {
+            return redirect()->route('c2c.show', $order);
+        }
+
+        return redirect()->route('user.orders.show', $order)
+            ->with('success', 'سفارش پیش‌فروش ثبت شد.');
+    }
+
     public function payment(Order $order)
     {
         if ($order->user_id !== auth()->id()) {
             abort(403);
+        }
+
+        if ($order->isPresale()) {
+            return redirect()->route('checkout.index');
         }
 
         if ($order->payment_status === PaymentStatus::Paid) {
@@ -357,10 +492,6 @@ class CheckoutController extends Controller
 
     // ─── گزینه‌های سفارشی: لاک و چک موجودی ─────────────────────
 
-    /**
-     * ردیف‌های گزینه‌های انتخاب‌شده را لاک کرده و برمی‌گرداند.
-     * خروجی: map با کلید fieldId|value → ProductCustomFieldOption (یا ردیف‌های لاک‌شده)
-     */
     private function lockSelectedOptions(array $customFields): array
     {
         if ($customFields === []) {
@@ -399,10 +530,6 @@ class CheckoutController extends Controller
         return $result;
     }
 
-    /**
-     * حد موجودی از میان گزینه‌های لاک‌شده (فقط آن‌هایی که موجودی اختصاصی دارند).
-     * null = هیچ‌کدام موجودی اختصاصی ندارند → مسیر قدیمی (محصول/واریانت)
-     */
     private function optionLimitFromLocks(array $optionLocks): ?int
     {
         $limits = [];

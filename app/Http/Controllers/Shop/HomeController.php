@@ -23,6 +23,7 @@ use App\Support\StoreSettings;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use App\Models\HeroBanner;
+use App\Models\PresaleCampaign;
 
 class HomeController extends Controller
 {
@@ -212,6 +213,12 @@ class HomeController extends Controller
 
         $sizeChartSample = HomepageContent::sizeChartSample();
 
+                // ── کمپین پیش‌فروش فعال ──
+         $activePresaleCampaign = PresaleCampaign::where('status', 'active')
+            ->where('ends_at', '>=', now())
+            ->with(['presaleProducts.product.images', 'presaleProducts.product.brand'])
+            ->first();
+
         return view('shop.home', compact(
             'featuredProducts',
             'latestProducts',
@@ -236,6 +243,8 @@ class HomeController extends Controller
             'heroPersonalization',
             'homeCollections',
             'sizeChartSample',
+            'activePresaleCampaign',
+
         ));
     }
 }

@@ -7,7 +7,16 @@
     @php $adminPageTitle = trim($__env->yieldContent('title')) ?: (trim($__env->yieldContent('header')) ?: 'داشبورد'); @endphp
     <title>{{ $adminPageTitle }} — {{ config('app.name') }}</title>
     <x-favicon />
-    @vite(['resources/css/app.css', 'resources/css/form-enhancements.css', 'resources/js/app.js', 'resources/js/admin.js'])
+@vite([
+    'resources/css/app.css',
+    'resources/css/form-enhancements.css',
+    'resources/js/app.js',
+    'resources/js/admin.js'
+])
+
+<x-theme-variables />
+
+@stack('styles')
     <x-theme-variables />
 </head>
 <body class="admin-body font-sans antialiased" style="font-family: Vazirmatn, sans-serif;" x-data="{ sidebarOpen: false, userMenuOpen: false }" @keydown.escape.window="sidebarOpen = false; userMenuOpen = false">
@@ -41,7 +50,9 @@
                         <h1 class="admin-header-title">@yield('header', 'داشبورد')</h1>
                     </div>
                 </div>
-                <a href="{{ route('admin.c2c.index') }}">پرداخت‌های کارت به کارت</a>
+
+                
+                <!-- <a href="{{ route('admin.c2c.index') }}">پرداخت‌های کارت به کارت</a> -->
                 <div class="admin-header-end">
                     <a href="{{ route('home') }}" class="admin-header-icon-btn hidden sm:inline-flex" title="مشاهده فروشگاه">
                         <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>

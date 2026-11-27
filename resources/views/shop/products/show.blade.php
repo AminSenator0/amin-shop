@@ -120,12 +120,66 @@ $schemaProduct = array_filter($schemaProduct, fn($v) => $v !== null);
             </div>
 
             <div class="product-detail-info-col">
-                <x-shop.product-purchase-panel
+                               <x-shop.product-purchase-panel
                     :product="$product"
                     :in-wishlist="$inWishlist"
                     :review-count="$approvedCount"
                     :avg-rating="$avgRating"
                 />
+
+                {{-- پیش‌فروش --}}
+                @php
+                    $activePresales = $presaleProducts ?? collect();
+                @endphp
+                @if($activePresales->isNotEmpty())
+                    <div class="mt-5 rounded-2xl border border-amber-200/60 bg-amber-50/60 p-4">
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800">
+                                پیش‌فروش
+                            </span>
+                            <span class="text-xs text-amber-700">قیمت نهایی بعد از اتمام کمپین مشخص می‌شود</span>
+                        </div>
+                          @foreach($activePresales as $pp)
+                        <form action="{{ route('cart.presale.store') }}" method="POST" class="flex flex-wrap items-center gap-3">
+                            @csrf
+                            <input type="hidden" name="presale_product_id" value="{{ $pp->id }}">
+                            
+                            <div class="w-full">
+                                <div class="text-sm font-bold text-amber-800">
+                                    @if($pp->customFieldsLabel())
+                                        {{ $pp->customFieldsLabel() }}
+                                    @else
+                                        نسخه استاندارد
+                                    @endif
+                                </div>
+                            </div>
+                            
+                            <div class="flex-1 min-w-[180px]">
+                                <div class="text-sm font-semibold text-slate-800">
+                                    بیعانه: {{ number_format($pp->presale_price) }} تومان
+                                </div>
+                                <div class="text-xs text-slate-500 mt-0.5">
+                                    @if($pp->campaign->ends_at)
+                                        @php $diff = now()->diffInDays($pp->campaign->ends_at); @endphp
+                                        @if($diff > 0)
+                                            {{ $diff }} روز تا پایان کمپین
+                                        @else
+                                            کمپین امروز به پایان می‌رسد
+                                        @endif
+                                    @endif
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <input type="number" name="quantity" value="1" min="1" max="10" class="w-16 rounded-lg border border-slate-300 px-2 py-1.5 text-center text-sm">
+                                <button type="submit" class="rounded-xl bg-amber-500 px-4 py-2 text-sm font-bold text-white shadow transition hover:bg-amber-600">
+                                    افزودن به سبد پیش‌فروش
+                                </button>
+                            </div>
+                        </form>
+                        @endforeach
+                    </div>
+                @endif
+            </div>
             </div>
         </div>
 

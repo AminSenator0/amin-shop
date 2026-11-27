@@ -36,6 +36,7 @@
     }
 
     $homeNavSections = array_values(array_filter([
+        $activePresaleCampaign ? ['id' => 'home-presale', 'label' => 'پیش‌فروش'] : null,
         $store['homepageCategoriesEnabled'] && $categories->count() ? ['id' => 'home-categories', 'label' => 'دسته‌ها'] : null, // ← اضافه شد
         $store['homepageCollectionsEnabled'] && ! empty($homeCollections) ? ['id' => 'home-collections', 'label' => 'کالکشن'] : null,
         $featuredProducts->count() ? ['id' => 'home-featured', 'label' => 'ویژه'] : null,
@@ -280,6 +281,8 @@
 </div>
 
 @include('shop.partials.home-how-it-works')
+{{-- ── Presale Campaign ── --}}
+<x-presale-home-section :campaign="$activePresaleCampaign" />
 
 {{-- ── Slider ── --}}
 @if($sliders->isNotEmpty())

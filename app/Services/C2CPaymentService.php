@@ -37,6 +37,32 @@ class C2CPaymentService
         ]);
     }
 
+
+        public function createForInstallment(Order $order, int $amountToman): \App\Models\C2CPayment
+    {
+        // پاک کردن C2C قبلی (برای deposit)
+        if ($order->c2cPayment) {
+            $order->c2cPayment->delete();
+        }
+
+        $rialBase = $amountToman * 10;
+        $randomSuffix = random_int(100, 9990);
+
+        do {
+            $exactRial = $rialBase + $randomSuffix;
+            $exists = \App\Models\C2CPayment::where('exact_rial', $exactRial)
+                ->where('status', 'pending')
+                ->exists();
+        } while ($exists);
+
+        return \App\Models\C2CPayment::create([
+            'order_id'     => $order->id,
+            'exact_rial'   => $exactRial,
+            'expires_at'   => now()->addHours(24),
+            'status'       => 'pending',
+        ]);
+    }
+
     /**
      * تأیید از طریق اپ موبایل (بر اساس مبلغ واریزی)
      */

@@ -26,6 +26,7 @@ return [
             'primary' => '#16827D',
             'accent' => '#2EC4B6',
         ],
+
         'indigo' => [
             'name' => 'نیلی',
             'description' => 'حرفه‌ای و مدرن',
@@ -50,6 +51,24 @@ return [
             'primary' => '#8B6048',
             'accent' => '#EED8C7',
         ],
+        'ab30' => [
+    'name' => 'کرم شکلاتی',
+    'description' => 'لوکس، گرم و مینیمال',
+    'primary' => '#A77B5A',
+    'accent' => '#F9E0BB',
+],
+'mobina' => [
+    'name' => 'کرم قهوه‌ای',
+    'description' => 'قهوه‌ای و کرم؛ لوکس و گرم',
+    'primary' => '#4A2F18',
+    'accent' => '#C4956D',
+],
+'cream_gold' => [
+    'name' => 'کرم طلایی',
+    'description' => 'کرم روشن با جزئیات قهوه‌ای تیره',
+    'primary' => '#F9E0BB',
+    'accent' => '#4A2F18',
+],
         'ocean' => [
             'name' => 'اقیانوسی',
             'description' => 'آرام و قابل اعتماد',
@@ -63,19 +82,24 @@ return [
     | فرمول ساخت پالت کامل از primary + accent
     |--------------------------------------------------------------------------
     */
-    'derivation' => [
-        'surface' => '#FFFFFF',
-        'primary_hover_darken' => 0.12,
-        'primary_dark_darken' => 0.25,
-        'primary_deeper_darken' => 0.42,
-        'accent_hover_darken' => 0.10,
-        'background_lighten' => 0.95,
-        'border_lighten' => 0.78,
-        'on_hero_lighten' => 0.88,
-        'text_base' => '#1A1A1A',
-        'text_mix_weight' => 0.18,
-        'muted_base' => '#6B7280',
-        'muted_mix_weight' => 0.22,
-    ],
+ 'derivation' => [
+    'surface' => '#F9E0BB',
+
+    'primary_hover_darken' => 0.12,
+    'primary_dark_darken' => 0.25,
+    'primary_deeper_darken' => 0.42,
+
+    'accent_hover_darken' => 0.10,
+
+    'background_lighten' => 0.95,
+    'border_lighten' => 0.78,
+    'on_hero_lighten' => 0.88,
+
+    'text_base' => '#362419',
+    'text_mix_weight' => 0.18,
+
+    'muted_base' => '#4A2F18',
+    'muted_mix_weight' => 0.12,
+],
 
 ];

@@ -262,7 +262,7 @@
         </div>
         <div class="c2c-summary-row">
             <span>مبلغ سفارش</span>
-            <strong>{{ number_format($order->total) }} تومان</strong>
+            <strong>{{ number_format(floor($c2c->exact_rial / 10)) }} تومان</strong>
         </div>
         @if($order->c2c_discount > 0)
             <div class="c2c-summary-row" style="color: #10b981;">
@@ -278,7 +278,7 @@
         @endif
         <div class="c2c-summary-row" style="font-weight: 900; color: #0f172a;">
             <span>مابقی قابل پرداخت کارت به کارت</span>
-            <strong>{{ number_format($order->gatewayPayable()) }} تومان</strong>
+           <strong>{{ number_format(floor($c2c->exact_rial / 10)) }} تومان</strong>
         </div>
     </div>
 
@@ -297,7 +297,7 @@
                 کپی
             </button>
         </div>
-                <div class="c2c-toman">معادل {{ number_format($order->gatewayPayable()) }} تومان</div>
+                <div class="c2c-toman">معادل {{ number_format(floor($c2c->exact_rial / 10)) }} تومان</div>
     </div>
 
     @php($c2cCards = \App\Support\StoreSettings::c2cCards())

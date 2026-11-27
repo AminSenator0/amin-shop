@@ -10,6 +10,8 @@ Artisan::command('inspire', function () {
 
 Schedule::command('orders:cancel-expired')->everyFiveMinutes();
 Schedule::command('security:check-alerts')->everyFiveMinutes();
+Schedule::command('presale:close-expired')->everyFiveMinutes();
+Schedule::command('presale:cancel-unpaid')->everyFiveMinutes();
 
 // پاکسازی لاگ‌های قدیمی (هر روز ساعت ۳ صبح)
 Schedule::command('audit-log:purge')->dailyAt('03:00');

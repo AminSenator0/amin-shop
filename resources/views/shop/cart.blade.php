@@ -65,11 +65,11 @@
                                     @if($item['product']->category)
                                         <a href="{{ route('products.index', ['category' => $item['product']->category->slug]) }}" class="shop-cart-item-category">{{ $item['product']->category->name }}</a>
                                     @endif
-                                    @if($item['options_label'])
+                                    @if(!empty($item['options_label']))
                                         <span class="shop-cart-item-options">{{ $item['options_label'] }}</span>
                                     @endif
                                 </div>
-                                <form method="POST" action="{{ route('cart.destroy', $item['key']) }}">
+                                <form method="POST" action="{{ route('cart.destroy', $item['line_key']) }}">
                                     @csrf @method('DELETE')
                                     <button
                                         type="submit"
@@ -83,17 +83,28 @@
                                 </form>
                             </div>
 
-                            {{-- ═══ فیلدهای سفارشی ═══ --}}
-                            @if(!empty($item['custom_fields_display']))
-                                <div class="mt-1.5 space-y-0.5 text-xs text-zinc-500">
-                                    @foreach($item['custom_fields_display'] as $cf)
-                                        <div>
-                                            <span class="font-medium text-zinc-600">{{ $cf['label'] }}:</span>
-                                            <span>{{ $cf['value'] }}</span>
-                                        </div>
-                                    @endforeach
-                                </div>
-                            @endif
+@php
+    $cfData = isset($item['custom_fields']) && is_array($item['custom_fields']) ? $item['custom_fields'] : [];
+@endphp
+@if(!empty($cfData))
+<div class="mt-1.5 space-y-0.5 text-xs text-zinc-500">
+    @foreach($cfData as $key => $cf)
+        @if(is_array($cf))
+            {{-- حالت پیش‌فروش: ['field_label' => '...', 'option_value' => '...'] --}}
+            <div>
+                <span class="font-medium text-zinc-600">{{ $cf['field_label'] ?? $cf['label'] ?? 'فیلد' }}:</span>
+                <span>{{ $cf['option_value'] ?? $cf['value'] ?? '-' }}</span>
+            </div>
+        @else
+            {{-- حالت عادی: ['size' => 'XL'] --}}
+            <div>
+                <span class="font-medium text-zinc-600">{{ is_string($key) ? $key : 'فیلد' }}:</span>
+                <span>{{ $cf }}</span>
+            </div>
+        @endif
+    @endforeach
+</div>
+@endif
                             {{-- ═══ پایان فیلدهای سفارشی ═══ --}}
 
                             <div class="shop-cart-item-meta">
@@ -102,7 +113,7 @@
                             </div>
 
                             <div class="shop-cart-item-footer">
-                                <form method="POST" action="{{ route('cart.update', $item['key']) }}" class="shop-cart-qty">
+                               <form method="POST" action="{{ route('cart.update', $item['line_key']) }}" class="shop-cart-qty">
                                     @csrf @method('PATCH')
                                     <button
                                         type="button"
@@ -132,7 +143,7 @@
 
                                 <div class="shop-cart-item-subtotal-wrap">
                                     <span class="shop-cart-item-subtotal-label">جمع</span>
-                                    <span class="shop-cart-item-subtotal">{{ format_price($item['subtotal']) }}</span>
+                                    <span class="shop-cart-item-subtotal">{{ format_price($item['total']) }}</span>
                                 </div>
                             </div>
                         </div>

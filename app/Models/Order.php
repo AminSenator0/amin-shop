@@ -38,6 +38,16 @@ class Order extends Model
         'shipped_at',
         'delivered_at',
         'admin_read_at',
+         'order_type',
+        'presale_campaign_id',
+        'presale_status',
+        'presale_final_total',
+        'presale_penalties_total',
+        'presale_total_paid',
+        'presale_deadline_at',
+        'presale_completed_at',
+        'presale_refunded_at',
+        'presale_payment_deadline_at',
     ];
 
     protected function casts(): array
@@ -52,6 +62,15 @@ class Order extends Model
             'wallet_amount' => 'integer',
             'delivered_at' => 'datetime',
             'admin_read_at' => 'datetime',
+            'order_type'              => 'string',
+            'presale_status'          => 'string',
+            'presale_final_total'     => 'integer',
+            'presale_penalties_total' => 'integer',
+            'presale_total_paid'      => 'integer',
+            'presale_deadline_at'     => 'datetime',
+            'presale_completed_at'    => 'datetime',
+            'presale_refunded_at'     => 'datetime',
+            'presale_payment_deadline_at' => 'datetime',
         ];
     }
 
@@ -177,5 +196,23 @@ class Order extends Model
     public function latestReturn(): ?OrderReturn
     {
         return $this->returns()->latest()->first();
+    }
+        public function isPresale(): bool
+    {
+        return $this->order_type === 'presale';
+    }
+
+    // public function presalePayments(): \Illuminate\Database\Eloquent\Relations\HasMany
+    // {
+    //     return $this->hasMany(\App\Models\PresalePayment::class);
+    // }
+        public function presaleCampaign()
+    {
+        return $this->belongsTo(\App\Models\PresaleCampaign::class);
+    }
+
+    public function presalePayments()
+    {
+        return $this->hasMany(\App\Models\PresalePayment::class, 'order_id');
     }
 }

@@ -4,19 +4,35 @@
 
 @section('content')
 <div class="flex flex-wrap items-center gap-3 mb-6">
-    <x-admin.status-badge :status="$order->status" class="text-sm px-3 py-1" />
+    @if($order->isPresale())
+        <span class="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-sm font-bold text-amber-700">پیش‌فروش</span>
+        @if($order->presale_status)
+            <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                {{ \App\Enums\PresaleStatus::tryFrom($order->presale_status)?->label() ?? $order->presale_status }}
+            </span>
+        @endif
+    @else
+        <x-admin.status-badge :status="$order->status" class="text-sm px-3 py-1" />
+    @endif
     <x-admin.status-badge :status="$order->payment_status" class="text-sm px-3 py-1" />
     <span class="text-xs text-zinc-500">{{ format_jalali($order->created_at, 'Y/m/d H:i') }}</span>
-    @if($order->payment_status->value === 'paid')
+    @if($order->payment_status->value === 'paid' && ! $order->isPresale())
         <a href="{{ route('admin.orders.invoice', $order) }}" target="_blank" rel="noopener" class="admin-btn-secondary text-xs">
             <span>مشاهده فاکتور</span>
         </a>
         <a href="{{ route('admin.orders.invoice', ['order' => $order, 'format' => 'pdf']) }}" class="admin-btn-secondary text-xs">دانلود PDF</a>
     @endif
-    @if($order->canBeCancelledByAdmin())
+    @if($order->canBeCancelledByAdmin() && ! $order->isPresale())
         <form method="POST" action="{{ route('admin.orders.cancel', $order) }}" data-confirm-message="آیا از لغو این سفارش مطمئن هستید؟">
             @csrf
             <button type="submit" class="admin-btn-secondary text-xs !text-rose-600">لغو سفارش</button>
+        </form>
+    @endif
+    @if($order->isPresale() && ! $order->presale_refunded_at)
+        <form method="POST" action="{{ route('admin.presale.orders.cancel', $order) }}" data-confirm-message="این سفارش پیش‌فروش لغو و تمام مبالغ به کیف پول مشتری بازگردانده می‌شود. ادامه می‌دهید؟">
+            @csrf
+            <input type="text" name="reason" placeholder="دلیل لغو..." class="admin-input text-xs w-40 mr-2" required>
+            <button type="submit" class="admin-btn-secondary text-xs !text-rose-600">لغو پیش‌فروش</button>
         </form>
     @endif
 </div>
@@ -64,6 +80,34 @@
         @endif
     </div>
 
+    @if($order->isPresale())
+    <div class="admin-card p-5">
+        <h3 class="flex items-center gap-2 text-sm font-bold text-zinc-500 mb-3">
+            <svg class="h-4 w-4 shrink-0 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <span>مالی پیش‌فروش</span>
+        </h3>
+        <dl class="space-y-2 text-sm">
+            <div class="flex justify-between gap-3"><dt class="text-zinc-500">بیعانه</dt><dd class="font-bold">{{ format_price($order->subtotal) }}</dd></div>
+            @if($order->presale_final_total)
+                <div class="flex justify-between gap-3"><dt class="text-zinc-500">قیمت نهایی</dt><dd class="font-bold">{{ format_price($order->presale_final_total) }}</dd></div>
+            @else
+                <div class="flex justify-between gap-3"><dt class="text-zinc-500">قیمت نهایی</dt><dd class="text-amber-600 font-bold">در انتظار</dd></div>
+            @endif
+            @if($order->presale_penalties_total > 0)
+                <div class="flex justify-between gap-3 text-rose-600"><dt>جریمه</dt><dd class="font-bold">{{ format_price($order->presale_penalties_total) }}</dd></div>
+            @endif
+            @if($order->presale_total_paid > 0)
+                <div class="flex justify-between gap-3 text-emerald-600"><dt>پرداخت شده</dt><dd class="font-bold">{{ format_price($order->presale_total_paid) }}</dd></div>
+            @endif
+            @if($order->presale_final_total)
+                <div class="flex justify-between gap-3 border-t border-zinc-100 pt-2"><dt class="font-black">مانده</dt><dd class="font-black text-shop-primary">{{ format_price(max(0, $order->presale_final_total + $order->presale_penalties_total - $order->subtotal)) }}</dd></div>
+            @endif
+            @if($order->presale_deadline_at)
+                <div class="flex justify-between gap-3"><dt class="text-zinc-500">مهلت تسویه</dt><dd class="{{ $order->presale_deadline_at->isPast() ? 'text-rose-600 font-bold' : 'text-zinc-900' }}">{{ format_jalali($order->presale_deadline_at, 'Y/m/d') }}</dd></div>
+            @endif
+        </dl>
+    </div>
+    @else
     <div class="admin-card p-5 space-y-4">
         <div>
             <h3 class="flex items-center gap-2 text-sm font-bold text-zinc-500 mb-3">
@@ -111,6 +155,7 @@
             </div>
         @endif
     </div>
+    @endif
 </div>
 
 <div class="grid gap-6 lg:grid-cols-3 mb-6">
@@ -120,6 +165,7 @@
                 <svg class="h-4 w-4 shrink-0 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                 <span>تغییر وضعیت</span>
             </h3>
+            @if(! $order->isPresale())
             <form method="POST" action="{{ route('admin.orders.status', $order) }}" class="space-y-2">
                 @csrf @method('PATCH')
                 <select name="status" class="admin-select w-full">
@@ -137,6 +183,12 @@
                 </label>
                 <button type="submit" class="admin-btn-primary w-full">به‌روزرسانی وضعیت</button>
             </form>
+            @else
+            <div class="rounded-xl bg-amber-50 border border-amber-200 p-3">
+                <p class="text-xs text-amber-700 font-bold">سفارش پیش‌فروش</p>
+                <p class="text-xs text-amber-600 mt-1">وضعیت سفارش بر اساس پرداخت‌ها و تعیین قیمت نهایی به‌صورت خودکار تغییر می‌کند.</p>
+            </div>
+            @endif
         </div>
         <div>
             <h3 class="flex items-center gap-2 text-sm font-bold text-zinc-500 mb-3">
@@ -156,6 +208,30 @@
                 </label>
                 <button type="submit" class="admin-btn-secondary w-full">ذخیره کد رهگیری</button>
             </form>
+            @if($order->isPresale())
+            <div class="mt-4 pt-4 border-t border-zinc-100">
+                <h3 class="flex items-center gap-2 text-sm font-bold text-zinc-500 mb-3">
+                    <span>پرداخت‌های پیش‌فروش</span>
+                </h3>
+                @if($order->presalePayments->isNotEmpty())
+                    <div class="space-y-2">
+                        @foreach($order->presalePayments as $payment)
+                            <div class="flex items-center justify-between text-xs">
+                                <span class="text-zinc-600">
+                                    {{ $payment->type === 'presale' ? 'بیعانه' : 'قسط' }}
+                                    ({{ $payment->method === 'zarinpal' ? 'زرین‌پال' : ($payment->method === 'c2c' ? 'کارت‌به‌کارت' : 'کیف پول') }})
+                                </span>
+                                <span class="font-bold {{ $payment->isVerified() ? 'text-emerald-600' : 'text-amber-600' }}">
+                                    {{ format_price($payment->amount) }}
+                                </span>
+                            </div>
+                        @endforeach
+                    </div>
+                @else
+                    <p class="text-xs text-zinc-400">هنوز پرداختی ثبت نشده.</p>
+                @endif
+            </div>
+            @endif
         </div>
         <div>
             <h3 class="flex items-center gap-2 text-sm font-bold text-zinc-500 mb-3">
@@ -184,7 +260,13 @@
                 <svg class="h-4 w-4 shrink-0 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
                 <span>اقلام سفارش</span>
             </h2>
-            <span class="text-sm font-bold text-zinc-900">{{ format_price($order->total) }}</span>
+            <span class="text-sm font-bold text-zinc-900">
+                @if($order->isPresale())
+                    {{ format_price($order->subtotal) }}
+                @else
+                    {{ format_price($order->total) }}
+                @endif
+            </span>
         </div>
         <div class="overflow-x-auto">
             <table class="admin-table">
@@ -206,33 +288,74 @@
                                     :link="$item->product ? route('admin.products.edit', $item->product) : null"
                                     link-class="admin-link font-bold text-zinc-900"
                                 />
-                                {{-- ═══ فیلدهای سفارشی ═══ --}}
-                                @if(!empty($item->custom_fields))
-                                    <div class="mt-1.5 space-y-0.5 text-xs text-zinc-500">
-                                        @foreach($item->custom_fields as $cf)
-                                            <div>
-                                                <span class="font-medium text-zinc-600">{{ $cf['label'] ?? 'فیلد سفارشی' }}:</span>
-                                                <span>{{ $cf['value'] }}</span>
-                                            </div>
-                                        @endforeach
-                                    </div>
-                                @endif
-                                {{-- ═══ پایان فیلدهای سفارشی ═══ --}}
+@php
+    $cfData = is_array($item->custom_fields) ? $item->custom_fields : [];
+@endphp
+@if(!empty($cfData))
+<div class="mt-1.5 space-y-0.5 text-xs text-zinc-500">
+    @foreach($cfData as $key => $cf)
+        @if(is_array($cf))
+            <div>
+                <span class="font-medium text-zinc-600">{{ $cf['field_label'] ?? $cf['label'] ?? 'فیلد' }}:</span>
+                <span>{{ $cf['option_value'] ?? $cf['value'] ?? '-' }}</span>
+            </div>
+        @else
+            <div>
+                <span class="font-medium text-zinc-600">{{ is_string($key) ? $key : 'فیلد' }}:</span>
+                <span>{{ $cf }}</span>
+            </div>
+        @endif
+    @endforeach
+</div>
+@endif
                             </td>
                             <td class="text-zinc-500 text-xs" dir="ltr">{{ $item->product_sku ?: '—' }}</td>
-                            <td>{{ format_price($item->price) }}</td>
+                            <td>
+                                @if($item->isPresale() && $item->presale_final_price)
+                                    <div class="font-bold text-shop-primary">{{ format_price($item->presale_final_price) }}</div>
+                                    <div class="text-xs text-zinc-500">بیعانه: {{ format_price($item->price) }}</div>
+                                    @if($item->presale_penalty > 0)
+                                        <div class="text-xs text-rose-500">جریمه: {{ format_price($item->presale_penalty) }}</div>
+                                    @endif
+                                @else
+                                    {{ format_price($item->price) }}
+                                @endif
+                            </td>
                             <td>{{ $item->quantity }}</td>
                             <td class="font-bold">{{ format_price($item->total) }}</td>
                         </tr>
                     @endforeach
                 </tbody>
                 <tfoot class="border-t border-zinc-100 bg-zinc-50/50">
-                    <tr><td colspan="4" class="text-zinc-500">جمع محصولات</td><td class="font-bold">{{ format_price($order->subtotal) }}</td></tr>
-                    <tr><td colspan="4" class="text-zinc-500">هزینه ارسال</td><td>{{ format_price($order->shipping_cost) }}</td></tr>
-                    @if($order->discount_amount > 0)
-                        <tr><td colspan="4" class="text-zinc-500">تخفیف @if($order->coupon_code)({{ $order->coupon_code }})@endif</td><td class="text-emerald-600">-{{ format_price($order->discount_amount) }}</td></tr>
+                    @if($order->isPresale())
+                        <tr><td colspan="4" class="text-zinc-500">جمع بیعانه</td><td class="font-bold">{{ format_price($order->subtotal) }}</td></tr>
+                        @if($order->shipping_cost > 0)
+                            <tr><td colspan="4" class="text-zinc-500">هزینه ارسال</td><td>{{ format_price($order->shipping_cost) }}</td></tr>
+                        @endif
+                        @if($order->discount_amount > 0)
+                            <tr><td colspan="4" class="text-zinc-500">تخفیف @if($order->coupon_code)({{ $order->coupon_code }})@endif</td><td class="text-emerald-600">-{{ format_price($order->discount_amount) }}</td></tr>
+                        @endif
+                        <tr><td colspan="4" class="font-bold text-zinc-700">پرداخت شده (بیعانه)</td><td class="font-bold text-zinc-700">{{ format_price($order->subtotal) }}</td></tr>
+                        @if($order->presale_final_total)
+                            <tr><td colspan="4" class="text-zinc-500">قیمت نهایی محصول</td><td class="font-bold">{{ format_price($order->presale_final_total) }}</td></tr>
+                        @endif
+                        @if($order->presale_penalties_total > 0)
+                            <tr><td colspan="4" class="text-zinc-500">جریمه</td><td class="text-rose-600">{{ format_price($order->presale_penalties_total) }}</td></tr>
+                        @endif
+                        @if($order->presale_total_paid > 0)
+                            <tr><td colspan="4" class="text-zinc-500">کل پرداخت شده</td><td class="text-emerald-600">{{ format_price($order->presale_total_paid) }}</td></tr>
+                        @endif
+                        @if($order->presale_final_total)
+                            <tr><td colspan="4" class="font-black text-zinc-900">مانده تسویه</td><td class="font-black text-zinc-900">{{ format_price(max(0, $order->presale_final_total + $order->presale_penalties_total - $order->subtotal)) }}</td></tr>
+                        @endif
+                    @else
+                        <tr><td colspan="4" class="text-zinc-500">جمع محصولات</td><td class="font-bold">{{ format_price($order->subtotal) }}</td></tr>
+                        <tr><td colspan="4" class="text-zinc-500">هزینه ارسال</td><td>{{ format_price($order->shipping_cost) }}</td></tr>
+                        @if($order->discount_amount > 0)
+                            <tr><td colspan="4" class="text-zinc-500">تخفیف @if($order->coupon_code)({{ $order->coupon_code }})@endif</td><td class="text-emerald-600">-{{ format_price($order->discount_amount) }}</td></tr>
+                        @endif
+                        <tr><td colspan="4" class="font-black text-zinc-900">مبلغ نهایی</td><td class="font-black text-zinc-900">{{ format_price($order->total) }}</td></tr>
                     @endif
-                    <tr><td colspan="4" class="font-black text-zinc-900">مبلغ نهایی</td><td class="font-black text-zinc-900">{{ format_price($order->total) }}</td></tr>
                 </tfoot>
             </table>
         </div>

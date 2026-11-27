@@ -30,25 +30,43 @@
     </div>
 
 <div class="user-quick-actions">
-    @if(in_array($order->payment_status->value, ['pending', 'failed'], true) && ! in_array($order->status->value, ['cancelled', 'shipped', 'delivered'], true))
-        <a href="{{ route('checkout.payment', $order) }}" class="user-action-chip is-primary">
-            {{ $order->payment_status->value === 'failed' || $order->status->value === 'failed' ? 'تلاش مجدد پرداخت' : 'پرداخت سفارش' }}
-        </a>
+    {{-- پیش‌فروش: پرداخت بیعانه/قسط --}}
+    @if($order->isPresale())
+        <!-- @if(in_array($order->presale_status, [\App\Enums\PresaleStatus::AwaitingFinalPrice->value, \App\Enums\PresaleStatus::AwaitingPayment->value, \App\Enums\PresaleStatus::PartiallyPaid->value], true))
+            <a href="{{ route('checkout.payment', $order) }}" class="user-action-chip is-primary">
+                @if($order->presale_status === \App\Enums\PresaleStatus::AwaitingFinalPrice->value)
+                    پرداخت بیعانه
+                @else
+                    پرداخت قسط
+                @endif
+            </a>
+        @endif -->
+    @else
+        {{-- خرید عادی (کد قبلی بدون تغییر) --}}
+        @if(in_array($order->payment_status->value, ['pending', 'failed'], true) && ! in_array($order->status->value, ['cancelled', 'shipped', 'delivered'], true))
+            <a href="{{ route('checkout.payment', $order) }}" class="user-action-chip is-primary">
+                {{ $order->payment_status->value === 'failed' || $order->status->value === 'failed' ? 'تلاش مجدد پرداخت' : 'پرداخت سفارش' }}
+            </a>
+        @endif
     @endif
-    @if($order->payment_status->value === 'paid')
+
+    @if($order->payment_status->value === 'paid' && ! $order->isPresale())
         <a href="{{ route('user.orders.invoice', $order) }}" target="_blank" rel="noopener" class="user-action-chip">مشاهده فاکتور</a>
         <a href="{{ route('user.orders.invoice', ['order' => $order, 'format' => 'pdf']) }}" class="user-action-chip">دانلود PDF</a>
     @endif
-    @if($order->tracking_code)
+
+    @if($order->tracking_code && ! $order->isPresale())
         <a href="{{ route('orders.track', ['code' => $order->order_number, 'phone' => $order->shipping_address['phone'] ?? '']) }}" class="user-action-chip">پیگیری مرسوله</a>
     @endif
-    @if($order->status->value !== 'cancelled')
+
+    @if($order->status->value !== 'cancelled' && ! $order->isPresale())
         <form method="POST" action="{{ route('user.orders.reorder', $order) }}">
             @csrf
             <button type="submit" class="user-action-chip">خرید مجدد</button>
         </form>
     @endif
-    @if($order->canBeCancelledByUser())
+
+    @if($order->canBeCancelledByUser() && ! $order->isPresale())
         <form method="POST" action="{{ route('user.orders.cancel', $order) }}" data-confirm-message="آیا از لغو این سفارش مطمئن هستید؟">
             @csrf
             <button type="submit" class="user-action-chip is-danger">لغو سفارش</button>
@@ -115,31 +133,66 @@
     <div class="user-info-card">
         <h2 class="mb-4 text-base font-black text-shop-text">آدرس ارسال</h2>
         <div class="space-y-1.5 text-sm">
-            <p class="font-bold">{{ $order->shipping_address['full_name'] }}</p>
-            <p class="text-shop-muted">{{ $order->shipping_address['province'] }}، {{ $order->shipping_address['city'] }}</p>
-            <p class="leading-relaxed text-shop-muted">{{ $order->shipping_address['address'] }}</p>
-            <p class="text-shop-muted">کد پستی: <span dir="ltr">{{ $order->shipping_address['postal_code'] }}</span></p>
-            <p class="text-shop-muted">تلفن: <span dir="ltr">{{ $order->shipping_address['phone'] }}</span></p>
+<p class="font-bold">{{ $order->shipping_address['full_name'] ?? $order->shipping_address['name'] ?? '—' }}</p>
+<p class="text-shop-muted">{{ ($order->shipping_address['province'] ?? '') }}، {{ ($order->shipping_address['city'] ?? '') }}</p>
+<p class="leading-relaxed text-shop-muted">{{ $order->shipping_address['address'] ?? '—' }}</p>
+<p class="text-shop-muted">کد پستی: <span dir="ltr">{{ $order->shipping_address['postal_code'] ?? '—' }}</span></p>
+<p class="text-shop-muted">تلفن: <span dir="ltr">{{ $order->shipping_address['phone'] ?? '—' }}</span></p>
         </div>
     </div>
     <div class="user-info-card">
         <h2 class="mb-4 text-base font-black text-shop-text">خلاصه مالی</h2>
-        <div class="space-y-3 text-sm">
-            <div class="flex justify-between"><span class="text-shop-muted">جمع محصولات</span><span class="font-bold">{{ format_price($order->subtotal) }}</span></div>
-            @if($order->discount_amount > 0)
-                <div class="flex justify-between text-emerald-600"><span>تخفیف ({{ $order->coupon_code }})</span><span class="font-bold">-{{ format_price($order->discount_amount) }}</span></div>
+        
+        @if($order->isPresale())
+            {{-- پیش‌فروش --}}
+            <div class="space-y-2 text-sm">
+                <div class="flex justify-between"><span class="text-shop-muted">بیعانه</span><span class="font-bold">{{ format_price($order->subtotal) }}</span></div>
+                @if($order->presale_final_total)
+                    <div class="flex justify-between"><span class="text-shop-muted">قیمت نهایی</span><span class="font-bold">{{ format_price($order->presale_final_total) }}</span></div>
+                @else
+                    <div class="flex justify-between"><span class="text-shop-muted">قیمت نهایی</span><span class="font-bold text-amber-600">در انتظار</span></div>
+                @endif
+                @if($order->presale_penalties_total > 0)
+                    <div class="flex justify-between text-rose-600"><span>جریمه</span><span class="font-bold">{{ format_price($order->presale_penalties_total) }}</span></div>
+                @endif
+                @if($order->presale_total_paid > 0)
+                    <div class="flex justify-between text-emerald-600"><span>پرداخت شده</span><span class="font-bold">{{ format_price($order->presale_total_paid) }}</span></div>
+                @endif
+                @if($order->presale_final_total)
+                    <div class="flex justify-between border-t border-shop-border/60 pt-2 text-base">
+                        <span class="font-black">مانده</span>
+                        <span class="font-black text-shop-primary">
+                           {{ format_price(max(0, $order->presale_final_total + $order->presale_penalties_total - $order->subtotal)) }}
+                        </span>
+                    </div>
+                @endif
+                @if($order->presale_deadline_at)
+                    <p class="mt-2 text-xs text-shop-muted">
+                        مهلت تسویه: {{ format_jalali($order->presale_deadline_at, 'Y/m/d') }}
+                        @if($order->presale_deadline_at->isPast() && $order->presale_status !== \App\Enums\PresaleStatus::Completed->value)
+                            <span class="text-rose-600 font-bold">(به پایان رسیده)</span>
+                        @endif
+                    </p>
+                @endif
+            </div>
+        @else
+            {{-- خرید عادی (کد قبلی بدون تغییر) --}}
+            <div class="space-y-3 text-sm">
+                <div class="flex justify-between"><span class="text-shop-muted">جمع محصولات</span><span class="font-bold">{{ format_price($order->subtotal) }}</span></div>
+                @if($order->discount_amount > 0)
+                    <div class="flex justify-between text-emerald-600"><span>تخفیف ({{ $order->coupon_code }})</span><span class="font-bold">-{{ format_price($order->discount_amount) }}</span></div>
+                @endif
+                <div class="flex justify-between"><span class="text-shop-muted">هزینه ارسال</span><span class="font-bold">{{ format_price($order->shipping_cost) }}</span></div>
+                <div class="flex justify-between border-t border-shop-border/60 pt-3 text-base"><span class="font-black">مبلغ قابل پرداخت</span><span class="font-black text-shop-primary">{{ format_price($order->total) }}</span></div>
+            </div>
+            @if($order->shippingMethod)
+                <p class="mt-4 text-sm text-shop-muted">روش ارسال: {{ $order->shippingMethod->name }}</p>
             @endif
-            <div class="flex justify-between"><span class="text-shop-muted">هزینه ارسال</span><span class="font-bold">{{ format_price($order->shipping_cost) }}</span></div>
-            <div class="flex justify-between border-t border-shop-border/60 pt-3 text-base"><span class="font-black">مبلغ قابل پرداخت</span><span class="font-black text-shop-primary">{{ format_price($order->total) }}</span></div>
-        </div>
-        @if($order->shippingMethod)
-            <p class="mt-4 text-sm text-shop-muted">روش ارسال: {{ $order->shippingMethod->name }}</p>
-        @endif
-        @if($order->payment_ref)
-            <p class="mt-1 text-sm text-shop-muted">کد پیگیری پرداخت: <span dir="ltr" class="font-mono">{{ $order->payment_ref }}</span></p>
+            @if($order->payment_ref)
+                <p class="mt-1 text-sm text-shop-muted">کد پیگیری پرداخت: <span dir="ltr" class="font-mono">{{ $order->payment_ref }}</span></p>
+            @endif
         @endif
     </div>
-</div>
 
 @if($order->notes)
     <div class="user-info-card mb-8">
@@ -172,20 +225,39 @@
                             :item="$item"
                             :link="$item->product ? route('products.show', $item->product->slug) : null"
                         />
-                        {{-- ═══ فیلدهای سفارشی ═══ --}}
-                        @if(!empty($item->custom_fields))
-                            <div class="mt-1.5 space-y-0.5 text-xs text-zinc-500">
-                                @foreach($item->custom_fields as $cf)
-                                    <div>
-                                        <span class="font-medium text-zinc-600">{{ $cf['label'] ?? 'فیلد سفارشی' }}:</span>
-                                        <span>{{ $cf['value'] }}</span>
-                                    </div>
-                                @endforeach
-                            </div>
-                        @endif
+@php
+    $cfData = is_array($item->custom_fields) ? $item->custom_fields : [];
+@endphp
+@if(!empty($cfData))
+<div class="mt-1.5 space-y-0.5 text-xs text-zinc-500">
+    @foreach($cfData as $key => $cf)
+        @if(is_array($cf))
+            <div>
+                <span class="font-medium text-zinc-600">{{ $cf['field_label'] ?? $cf['label'] ?? 'فیلد' }}:</span>
+                <span>{{ $cf['option_value'] ?? $cf['value'] ?? '-' }}</span>
+            </div>
+        @else
+            <div>
+                <span class="font-medium text-zinc-600">{{ is_string($key) ? $key : 'فیلد' }}:</span>
+                <span>{{ $cf }}</span>
+            </div>
+        @endif
+    @endforeach
+</div>
+@endif
                         {{-- ═══ پایان فیلدهای سفارشی ═══ --}}
                     </td>
-                    <td>{{ format_price($item->price) }}</td>
+                                        <td>
+                        @if($item->isPresale() && $item->presale_final_price)
+                            <div class="text-sm font-bold text-shop-primary">{{ format_price($item->presale_final_price) }}</div>
+                            <div class="text-xs text-shop-muted">بیعانه: {{ format_price($item->price) }}</div>
+                            @if($item->presale_penalty > 0)
+                                <div class="text-xs text-rose-500">جریمه: {{ format_price($item->presale_penalty) }}</div>
+                            @endif
+                        @else
+                            {{ format_price($item->price) }}
+                        @endif
+                    </td>
                     <td>{{ $item->quantity }}</td>
                     <td class="font-bold text-shop-primary">{{ format_price($item->total) }}</td>
                     @if($order->status->value === 'delivered')

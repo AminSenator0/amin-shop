@@ -20,6 +20,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use App\Enums\WalletReferenceType;
 use App\Models\Wallet;
+use App\Enums\PresaleStatus;
+use App\Models\PresaleCampaign;
+use App\Models\PresaleProduct;
 
 class OrderService
 {
@@ -73,12 +76,83 @@ class OrderService
         ];
     }
 
+    public function createPresaleOrder(int $userId, int $campaignId, array $cartItems, array $shippingAddress): Order
+    {
+        return DB::transaction(function () use ($userId, $campaignId, $cartItems, $shippingAddress) {
+            $campaign = PresaleCampaign::findOrFail($campaignId);
+
+            if (!$campaign->isOpenNow()) {
+                throw new \RuntimeException('کمپین پیش‌فروش در حال حاضر باز نیست.');
+            }
+
+            $subtotal = 0;
+            foreach ($cartItems as $item) {
+                $subtotal += $item['price'] * $item['quantity'];
+            }
+
+            $order = Order::create([
+                'user_id'               => $userId,
+                'order_number'          => Order::generateOrderNumber(),
+                'order_type'            => 'presale',
+                'presale_campaign_id'   => $campaignId,
+                'presale_status'        => PresaleStatus::AwaitingFinalPrice->value,
+                'status'                => OrderStatus::Pending,
+                'payment_status'        => PaymentStatus::Pending,
+                'subtotal'              => $subtotal,
+                'total'                 => $subtotal,
+                'payable'               => $subtotal,
+                'paid'                  => 0,
+                'shipping_address'      => (function () use ($shippingAddress) {
+                    $address = \App\Models\Address::find($shippingAddress['address_id'] ?? null);
+                    if ($address) {
+                        return [
+                            'full_name'   => $address->full_name,
+                            'province'    => $address->province,
+                            'city'        => $address->city,
+                            'address'     => $address->address,
+                            'postal_code' => $address->postal_code,
+                            'phone'       => $address->phone,
+                        ];
+                    }
+                    return $shippingAddress;
+                })(),
+            ]);
+
+            foreach ($cartItems as $item) {
+                $presaleProduct = PresaleProduct::with('product')->findOrFail($item['presale_product_id']);
+                $product = $presaleProduct->product;
+
+                OrderItem::create([
+                    'order_id'            => $order->id,
+                    'product_id'          => $product->id,
+                 'product_name'        => $product->name . ($presaleProduct->customFieldsLabel() ? ' (' . $presaleProduct->customFieldsLabel() . ')' : ''),
+                    'product_sku'         => $product->sku,
+                   'options'             => null,
+                    'custom_fields'       => $presaleProduct->custom_fields,
+                    'price'               => $item['price'],
+                    'quantity'            => $item['quantity'],
+                    'total'               => $item['price'] * $item['quantity'],
+                    'presale_product_id'  => $presaleProduct->id,
+                    'presale_final_price' => null,
+                    'presale_penalty'     => 0,
+                ]);
+            }
+
+            $this->logActivity($order, 'created', 'سفارش پیش‌فروش ثبت شد.');
+
+            return $order;
+        });
+    }
+
     public function filteredQuery(Request $request): Builder
     {
         $query = Order::with('user');
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
+        }
+         if ($request->filled('campaign_id')) {
+            $query->where('presale_campaign_id', $request->campaign_id);
         }
 
         if ($request->filled('payment_status')) {
@@ -752,6 +826,7 @@ class OrderService
         Order::query()
             ->where('payment_status', PaymentStatus::Pending)
             ->where('status', OrderStatus::Pending)
+             ->where('order_type', '!=', 'presale')   // ← این خط اضافه شه
             ->where('created_at', '<', now()->subMinutes(20))
             ->with('items')
             ->chunkById(50, function ($orders) use (&$count) {

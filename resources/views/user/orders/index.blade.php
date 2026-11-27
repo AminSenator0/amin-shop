@@ -47,7 +47,12 @@
             </div>
         </div>
     </div>
+    @if(request()->has('type'))
+    <input type="hidden" name="type" value="{{ request('type') }}">
+@endif
+
 </form>
+
 
 @if($orders->isEmpty())
     <x-user.empty-state
@@ -75,23 +80,49 @@
                 @foreach($orders as $order)
                     <tr>
                         <td class="font-bold">
-                            {{ $order->order_number }}
-                            @if($order->tracking_code)
+                            <div class="flex items-center gap-2">
+                                {{ $order->order_number }}
+                                @if($order->isPresale())
+                                    <span class="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                                        پیش‌فروش
+                                    </span>
+                                @endif
+                            </div>
+                            @if($order->tracking_code && ! $order->isPresale())
                                 <p class="mt-0.5 text-[11px] font-normal text-shop-muted" dir="ltr">{{ $order->tracking_code }}</p>
                             @endif
                         </td>
                         <td class="text-shop-muted">{{ format_jalali($order->created_at, 'Y/m/d — H:i') }}</td>
                         <td class="text-shop-muted">{{ format_number($order->items->sum('quantity')) }} قلم</td>
-                        <td class="font-bold text-shop-primary">{{ format_price($order->total) }}</td>
+                        <td class="font-bold text-shop-primary">
+                            @if($order->isPresale())
+                                {{ format_price($order->subtotal) }}
+                                <p class="text-[10px] font-normal text-shop-muted">بیعانه</p>
+                            @else
+                                {{ format_price($order->total) }}
+                            @endif
+                        </td>
                         <td class="whitespace-nowrap"><x-user.status-badge :status="$order->status" /></td>
                         <td class="whitespace-nowrap"><x-user.status-badge :status="$order->payment_status" /></td>
                         <td>
                             <div class="flex flex-wrap gap-2">
                                 <a href="{{ route('user.orders.show', $order) }}" class="user-section-link">جزئیات</a>
-                                @if(in_array($order->payment_status->value, ['pending', 'failed'], true) && ! in_array($order->status->value, ['cancelled', 'shipped', 'delivered'], true))
-                                    <a href="{{ route('checkout.payment', $order) }}" class="text-sm font-bold text-emerald-600 hover:underline">
-                                        {{ $order->payment_status->value === 'failed' || $order->status->value === 'failed' ? 'تلاش مجدد' : 'پرداخت' }}
-                                    </a>
+                                @if($order->isPresale())
+                                    <!-- @if(in_array($order->presale_status, [\App\Enums\PresaleStatus::AwaitingFinalPrice->value, \App\Enums\PresaleStatus::AwaitingPayment->value, \App\Enums\PresaleStatus::PartiallyPaid->value], true))
+                                        <a href="{{ route('checkout.payment', $order) }}" class="text-sm font-bold text-emerald-600 hover:underline">
+                                            @if($order->presale_status === \App\Enums\PresaleStatus::AwaitingFinalPrice->value)
+                                                پرداخت بیعانه
+                                            @else
+                                                پرداخت قسط
+                                            @endif
+                                        </a>
+                                    @endif -->
+                                @else
+                                    @if(in_array($order->payment_status->value, ['pending', 'failed'], true) && ! in_array($order->status->value, ['cancelled', 'shipped', 'delivered'], true))
+                                        <a href="{{ route('checkout.payment', $order) }}" class="text-sm font-bold text-emerald-600 hover:underline">
+                                            {{ $order->payment_status->value === 'failed' || $order->status->value === 'failed' ? 'تلاش مجدد' : 'پرداخت' }}
+                                        </a>
+                                    @endif
                                 @endif
                             </div>
                         </td>

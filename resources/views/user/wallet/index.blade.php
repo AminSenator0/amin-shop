@@ -347,112 +347,167 @@
                             </svg>
                             <span>مبلغ واریزی باید دقیقاً با مبلغ درخواستی یکسان باشد.</span>
                         </div>
-                    @endif
-                    
-                    <form method="POST" action="{{ route('wallet.charge-c2c') }}" enctype="multipart/form-data">
-                        @csrf
 
-                        <div class="mb-5 grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
-                            <div class="min-w-0">
+                        <form method="POST" action="{{ route('wallet.charge-c2c') }}" enctype="multipart/form-data">
+                            @csrf
+
+                            <div class="mb-5 grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+                                <div class="min-w-0">
+                                    <label class="mb-2 block text-sm font-bold text-gray-700">
+                                        مبلغ واریزی
+                                        <span class="text-xs font-medium text-gray-400">({{ $currency }})</span>
+                                        <span class="text-rose-500">*</span>
+                                    </label>
+
+                                    <input
+                                        type="text"
+                                        :value="fmtAmount(amount)"
+                                        @input="amount = enDigits($event.target.value)"
+                                        required
+                                        placeholder="مثلاً 500,000"
+                                        dir="ltr"
+                                        inputmode="numeric"
+                                        class="block w-full min-w-0 rounded-2xl border-2 border-gray-200
+                                            bg-gray-50 px-4 py-3.5 text-left font-bold text-gray-800
+                                            outline-none transition placeholder:font-medium placeholder:text-gray-400
+                                            focus:border-teal-500 focus:bg-white"
+                                    >
+                                    <input type="hidden" name="amount" :value="amount">
+
+                                    <template x-if="parseInt(amount) > 0">
+                                        <p class="mt-2 text-xs font-bold text-teal-700">
+                                            مبلغ واریزی: <span x-text="fmtAmount(amount)"></span> {{ $currency }}
+                                        </p>
+                                    </template>
+
+                                    @error('amount')
+                                        <p class="mt-2 text-xs font-bold text-rose-600">{{ $message }}</p>
+                                    @enderror
+                                </div>
+
+                                <div class="min-w-0">
+                                    <label class="mb-2 block text-sm font-bold text-gray-700">
+                                        کد رهگیری
+                                        <span class="text-xs font-medium text-gray-400">(اختیاری)</span>
+                                    </label>
+
+                                    <input
+                                        type="text"
+                                        name="tracking_code"
+                                        maxlength="50"
+                                        value="{{ old('tracking_code') }}"
+                                        placeholder="کد رهگیری بانکی"
+                                        dir="ltr"
+                                        class="block w-full min-w-0 rounded-2xl border-2 border-gray-200
+                                            bg-gray-50 px-4 py-3.5 text-left font-bold text-gray-800
+                                            outline-none transition placeholder:font-medium placeholder:text-gray-400
+                                            focus:border-teal-500 focus:bg-white"
+                                    >
+
+                                    @error('tracking_code')
+                                        <p class="mt-2 text-xs font-bold text-rose-600">{{ $message }}</p>
+                                    @enderror
+                                </div>
+                            </div>
+
+                            {{-- آپلود رسید — با پیش‌نمایش و فیدبک زنده --}}
+                            <div class="mb-5 min-w-0" x-data="{
+                                receipt: null,
+                                receiptName: '',
+                                receiptPreview: null,
+                                receiptSize: '',
+                                handleReceipt(file) {
+                                    if (!file) return;
+                                    this.receipt = file;
+                                    this.receiptName = file.name;
+                                    this.receiptSize = (file.size / 1024 > 1024)
+                                        ? (file.size / 1048576).toFixed(1) + ' مگابایت'
+                                        : Math.max(1, Math.round(file.size / 1024)) + ' کیلوبایت';
+                                    if (file.type.startsWith('image/')) {
+                                        const r = new FileReader();
+                                        r.onload = e => this.receiptPreview = e.target.result;
+                                        r.readAsDataURL(file);
+                                    } else {
+                                        this.receiptPreview = null;
+                                    }
+                                }
+                            }">
                                 <label class="mb-2 block text-sm font-bold text-gray-700">
-                                    مبلغ واریزی
-                                    <span class="text-xs font-medium text-gray-400">({{ $currency }})</span>
+                                    تصویر رسید واریز
                                     <span class="text-rose-500">*</span>
                                 </label>
 
-                                <input
-                                    type="text"
-                                    :value="fmtAmount(amount)"
-                                    @input="amount = enDigits($event.target.value)"
-                                    required
-                                    placeholder="مثلاً 500,000"
-                                    dir="ltr"
-                                    inputmode="numeric"
-                                    class="block w-full min-w-0 rounded-2xl border-2 border-gray-200
-                                        bg-gray-50 px-4 py-3.5 text-left font-bold text-gray-800
-                                        outline-none transition placeholder:font-medium placeholder:text-gray-400
-                                        focus:border-teal-500 focus:bg-white"
-                                >
-                                <input type="hidden" name="amount" :value="amount">
+                                <label class="group flex min-w-0 cursor-pointer flex-col items-center justify-center
+                                    gap-2 rounded-2xl border-2 border-dashed border-gray-300
+                                    bg-gray-50/70 px-4 py-7 text-center transition
+                                    hover:border-teal-400 hover:bg-teal-50/50">
 
-                                <template x-if="parseInt(amount) > 0">
-                                    <p class="mt-2 text-xs font-bold text-teal-700">
-                                        مبلغ واریزی: <span x-text="fmtAmount(amount)"></span> {{ $currency }}
-                                    </p>
-                                </template>
+                                    <span class="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-teal-600 shadow-sm transition group-hover:bg-teal-100">
+                                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+                                        </svg>
+                                    </span>
 
-                                @error('amount')
-                                    <p class="mt-2 text-xs font-bold text-rose-600">{{ $message }}</p>
-                                @enderror
-                            </div>
+                                    <span class="text-sm font-bold text-gray-700">انتخاب یا آپلود رسید</span>
+                                    <span class="text-xs text-gray-400">تصویر رسید بانکی را انتخاب کنید</span>
 
-                            <div class="min-w-0">
-                                <label class="mb-2 block text-sm font-bold text-gray-700">
-                                    کد رهگیری
-                                    <span class="text-xs font-medium text-gray-400">(اختیاری)</span>
+                                    <input type="file" name="receipt" required accept="image/jpeg,image/png" class="sr-only"
+                                           x-ref="receiptInput"
+                                           @change="handleReceipt($event.target.files[0])">
                                 </label>
 
-                                <input
-                                    type="text"
-                                    name="tracking_code"
-                                    maxlength="50"
-                                    value="{{ old('tracking_code') }}"
-                                    placeholder="کد رهگیری بانکی"
-                                    dir="ltr"
-                                    class="block w-full min-w-0 rounded-2xl border-2 border-gray-200
-                                        bg-gray-50 px-4 py-3.5 text-left font-bold text-gray-800
-                                        outline-none transition placeholder:font-medium placeholder:text-gray-400
-                                        focus:border-teal-500 focus:bg-white"
-                                >
+                                {{-- فیدبک زنده: پیش‌نمایش + تیک موفقیت --}}
+                                <div x-show="receipt" x-cloak x-transition
+                                     class="mt-3 flex items-center gap-3 overflow-hidden rounded-2xl border border-teal-200 bg-teal-50/70 p-3">
+                                    <div class="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-white shadow-sm">
+                                        <img x-show="receiptPreview" :src="receiptPreview" class="h-full w-full object-cover" alt="رسید">
+                                        <div x-show="!receiptPreview" class="flex h-full w-full items-center justify-center text-teal-500">
+                                            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+                                            </svg>
+                                        </div>
+                                        <span class="absolute -bottom-1 -left-1 flex h-5 w-5 items-center justify-center rounded-full bg-teal-500 text-white shadow">
+                                            <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3.5">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/>
+                                            </svg>
+                                        </span>
+                                    </div>
+                                    <div class="min-w-0 flex-1">
+                                        <p class="truncate text-sm font-bold text-teal-800" x-text="receiptName"></p>
+                                        <p class="text-xs text-teal-600" x-text="receiptSize"></p>
+                                        <p class="mt-0.5 text-[11px] font-bold text-teal-500">✓ رسید آماده ارسال است</p>
+                                    </div>
+                                    <button type="button" @click="receipt = null; receiptPreview = null; receiptName = ''; $refs.receiptInput.value = ''"
+                                            class="shrink-0 rounded-lg p-1.5 text-gray-400 transition hover:bg-rose-50 hover:text-rose-500"
+                                            aria-label="حذف رسید">
+                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                                        </svg>
+                                    </button>
+                                </div>
 
-                                @error('tracking_code')
+                                <p class="mt-2 text-xs leading-5 text-gray-400">فرمت مجاز: JPG یا PNG — حداکثر ۵ مگابایت</p>
+
+                                @error('receipt')
                                     <p class="mt-2 text-xs font-bold text-rose-600">{{ $message }}</p>
                                 @enderror
                             </div>
-                        </div>
 
-                        {{-- آپلود رسید --}}
-                        <div class="mb-5 min-w-0">
-                            <label class="mb-2 block text-sm font-bold text-gray-700">
-                                تصویر رسید واریز
-                                <span class="text-rose-500">*</span>
-                            </label>
-
-                            <label class="group flex min-w-0 cursor-pointer flex-col items-center justify-center
-                                gap-2 rounded-2xl border-2 border-dashed border-gray-300
-                                bg-gray-50/70 px-4 py-7 text-center transition
-                                hover:border-teal-400 hover:bg-teal-50/50">
-
-                                <span class="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-teal-600 shadow-sm transition group-hover:bg-teal-100">
-                                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                                        <path stroke-linecap="round" stroke-linejoin="round"
-                                            d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
-                                    </svg>
-                                </span>
-
-                                <span class="text-sm font-bold text-gray-700">انتخاب یا آپلود رسید</span>
-                                <span class="text-xs text-gray-400">تصویر رسید بانکی را انتخاب کنید</span>
-
-                                <input type="file" name="receipt" required accept="image/jpeg,image/png" class="sr-only">
-                            </label>
-
-                            <p class="mt-2 text-xs leading-5 text-gray-400">فرمت مجاز: JPG یا PNG — حداکثر ۵ مگابایت</p>
-
-                            @error('receipt')
-                                <p class="mt-2 text-xs font-bold text-rose-600">{{ $message }}</p>
-                            @enderror
-                        </div>
-
-                        <button
-                            type="submit"
-                            class="inline-flex w-full items-center justify-center gap-2 rounded-xl
-                                bg-teal-600 px-5 py-4 text-sm font-black text-white
-                                shadow-lg shadow-teal-600/20 transition hover:bg-teal-700
-                                active:scale-[.99]"
-                        >
-                            ثبت رسید و درخواست شارژ
-                        </button>
-                    </form>
+                            <button
+                                type="submit"
+                                class="inline-flex w-full items-center justify-center gap-2 rounded-xl
+                                    bg-teal-600 px-5 py-4 text-sm font-black text-white
+                                    shadow-lg shadow-teal-600/20 transition hover:bg-teal-700
+                                    active:scale-[.99]"
+                            >
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                                ثبت رسید و درخواست واریز
+                            </button>
+                        </form>
+                    @endif
                 </div>
             </div>
 

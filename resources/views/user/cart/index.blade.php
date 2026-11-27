@@ -74,7 +74,7 @@
                         </td>
                         <td class="font-bold">{{ format_price($item['subtotal']) }}</td>
                         <td>
-                            <form method="POST" action="{{ route('cart.destroy', $item['key']) }}">
+                            <form method="POST" action="{{ route('cart.destroy', $item['line_key']) }}">
                                 @csrf
                                 @method('DELETE')
                                 <button

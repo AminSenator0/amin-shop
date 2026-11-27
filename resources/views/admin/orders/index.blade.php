@@ -4,10 +4,13 @@
 
 @section('content')
 @php
-    $filterParams = array_filter([
+     $filterParams = array_filter([
         'search' => request('search'),
         'status' => request('status'),
         'payment_status' => request('payment_status'),
+        'order_type' => request('order_type'),
+        'needs_action' => request('needs_action'),
+        'unread' => request('unread'),
         'date_from' => request('date_from'),
         'date_to' => request('date_to'),
     ]);
@@ -62,6 +65,9 @@
         @if(request('payment_status'))
             <input type="hidden" name="payment_status" value="{{ request('payment_status') }}">
         @endif
+                @if(request('order_type'))
+            <input type="hidden" name="order_type" value="{{ request('order_type') }}">
+        @endif
         @if(request('needs_action'))
             <input type="hidden" name="needs_action" value="1">
         @endif
@@ -102,6 +108,11 @@
             @foreach(\App\Enums\PaymentStatus::cases() as $paymentStatus)
                 <option value="{{ $paymentStatus->value }}" @selected(request('payment_status') === $paymentStatus->value)>{{ $paymentStatus->label() }}</option>
             @endforeach
+        </select>
+                <select name="order_type" class="admin-select" data-auto-submit>
+            <option value="">همه نوع سفارش</option>
+            <option value="normal" @selected(request('order_type') === 'normal')>عادی</option>
+            <option value="presale" @selected(request('order_type') === 'presale')>پیش‌فروش</option>
         </select>
         @if(request('unread'))
             <a href="{{ route('admin.orders.index', $filterParams) }}" class="admin-btn-secondary text-sm whitespace-nowrap">همه سفارشات</a>

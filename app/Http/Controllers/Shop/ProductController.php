@@ -187,6 +187,11 @@ class ProductController extends Controller
 
         $productsBackUrl = ProductListReturn::resolve($request, $product);
         $productsBackLabel = ProductListReturn::label($productsBackUrl);
+        $presaleProducts = $product->presaleProducts()
+            ->whereHas('campaign', fn($q) => $q->where('status', 'active')->where('ends_at', '>=', now()))
+            ->where('is_active', true)
+            ->with('campaign')
+            ->get();
 
         return view('shop.products.show', compact(
             'product',
@@ -198,6 +203,7 @@ class ProductController extends Controller
             'canReview',
             'productsBackUrl',
             'productsBackLabel',
+            'presaleProducts',
         ));
     }
 }
